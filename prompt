@@ -1,0 +1,99 @@
+# AdMob Integration — Final Prompt for OpenCode (keys pre-filled)
+
+Paste everything below the `---` into OpenCode as-is. Real AdMob IDs are already filled in; test IDs are wired to auto-activate in development builds so you don't have to switch anything manually.
+
+---
+
+## PROMPT FOR OPENCODE
+
+Integrate Google AdMob monetization into the QuickScan PDF app using `react-native-google-mobile-ads`. Implement this fully end-to-end — no partial stubs, no leftover placeholders.
+
+### My real AdMob credentials (already issued, use exactly as-is):
+- **App ID (Android & iOS):** `ca-app-pub-1138568424665362~3611826927`
+- **Banner Ad Unit ID (production):** `ca-app-pub-1138568424665362/8225859358`
+- **Interstitial Ad Unit ID (production):** `ca-app-pub-1138568424665362/5141987288`
+
+### 1. Install and configure
+- Install the package: `npx expo install react-native-google-mobile-ads`
+- Add the config plugin to `app.json` (merge into existing plugins array, don't overwrite other plugins already there):
+  ```json
+  {
+    "expo": {
+      "plugins": [
+        [
+          "react-native-google-mobile-ads",
+          {
+            "androidAppId": "ca-app-pub-1138568424665362~3611826927",
+            "iosAppId": "ca-app-pub-1138568424665362~3611826927"
+          }
+        ]
+      ]
+    }
+  }
+  ```
+- Create/update `constants/config.ts` with this exact content:
+  ```ts
+  import { Platform } from 'react-native';
+
+  export const ADS_ENABLED = true;
+
+  export const AD_UNIT_IDS = {
+    banner: __DEV__
+      ? Platform.select({
+          ios: 'ca-app-pub-3940256099942544/2934735716',
+          android: 'ca-app-pub-3940256099942544/6300978111',
+        })!
+      : 'ca-app-pub-1138568424665362/8225859358',
+
+    interstitial: __DEV__
+      ? Platform.select({
+          ios: 'ca-app-pub-3940256099942544/4411468910',
+          android: 'ca-app-pub-3940256099942544/1033173712',
+        })!
+      : 'ca-app-pub-1138568424665362/5141987288',
+  };
+
+  export const INTERSTITIAL_FREQUENCY = 3; // show interstitial every Nth successful export
+  ```
+  This means: development/simulator builds automatically use Google's official test ad units (safe to click, no account risk), and any production build automatically uses my real ad unit IDs — no manual swapping ever required. Do not hardcode test IDs anywhere else, and do not hardcode production IDs anywhere else — always import from this file.
+
+### 2. Initialize the SDK and consent flow at app startup
+In the root layout (`app/_layout.tsx`), on mount, in this order:
+1. Run the **UMP consent flow** using `AdsConsent` from `react-native-google-mobile-ads` — request consent info update, and show Google's consent form automatically if required for the user's region (EEA/UK GDPR). Store whether personalized ads are permitted based on the result.
+2. On iOS only, before requesting personalized ads, request **App Tracking Transparency** permission via `expo-tracking-transparency` (install it if not already present: `npx expo install expo-tracking-transparency`, and add the `NSUserTrackingUsageDescription` string to `app.json`'s iOS config).
+3. Only after consent/ATT resolves (regardless of the user's answer), call `mobileAds().initialize()`.
+4. If the user denies consent or tracking, the app must still request and show **non-personalized ads** rather than failing — never block core scanning/PDF features on ad consent, and never show a hard error if ads can't personalize.
+
+### 3. Banner ad component
+- Implement `components/AdBanner.tsx` as a real component (replace any stub) using `BannerAd` from `react-native-google-mobile-ads`:
+  - `unitId={AD_UNIT_IDS.banner}`
+  - `size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}`
+  - `requestOptions` should set `requestNonPersonalizedAdsOnly` based on the consent state from step 2.
+  - Wrap the whole component in a check on `ADS_ENABLED` — render `null` if false.
+  - If the ad fails to load (`onAdFailedToLoad`), render `null` — never show a broken/blank ad frame that shifts surrounding layout.
+- Place `<AdBanner />` on the Dashboard screen (`app/index.tsx`) in a fixed position that never overlaps the document grid or the FAB's tap target — pin it just above the FAB or directly below the header.
+
+### 4. Interstitial ad
+- Create `hooks/useInterstitialAd.ts`:
+  - Preload an `InterstitialAd` instance using `AD_UNIT_IDS.interstitial` with the correct `requestNonPersonalizedAdsOnly` option from consent state.
+  - Expose a `showAdIfReady()` function.
+  - After the ad is shown OR fails to load, immediately load the next one so it's ready for next time.
+- Track a persisted counter of successful exports (in the same local storage used for documents — e.g. a simple key `quickscan:exportCount`).
+- On the Share screen, after the user taps **"Done / Return to Home"** following a successful export:
+  - Increment the export counter.
+  - If `exportCount % INTERSTITIAL_FREQUENCY === 0`, call `showAdIfReady()` before navigating back to the Dashboard.
+  - Otherwise, navigate straight back with no ad.
+- Never show or preload the interstitial during camera capture, editing, or while PDF generation is actively processing — only ever after a successful export, on the way out.
+
+### 5. Global kill-switch behavior
+- Every ad code path (SDK init, banner render, interstitial preload/show) must check `ADS_ENABLED` first and fully no-op if it's `false`, so ads can be disabled app-wide by flipping one constant — no other code changes needed.
+
+### 6. Testing requirements — confirm all of these before calling it done
+- The app must be tested in a **development build** (`npx expo run:android` or an EAS dev build) — note explicitly if anything fails silently under Expo Go, since AdMob's native module does not function there.
+- Confirm Google's test banner and test interstitial visibly render during this dev-build testing (since `__DEV__` is true, real ad unit IDs should NOT be requested at this stage).
+- Confirm the app does not crash, hang, or block any core flow if ad requests fail (e.g. airplane mode) — scanning, editing, and PDF export/share must work 100% normally with zero ads loaded.
+- Confirm no ad ever renders on top of the Camera, Editor, or Share/processing screens.
+- Confirm the consent form appears correctly when simulating an EEA region (the library supports a debug geography override for testing this — use it and confirm).
+
+### 7. Deliverable
+When finished, tell me: which files were created/changed, confirmation that setting `ADS_ENABLED = false` fully disables every ad code path with no crashes, and a final reminder that before submitting to the Play Store/App Store I should do one production-mode build (`eas build --profile production` or equivalent) and verify my real ad unit IDs are the ones being requested (not the test ones).
