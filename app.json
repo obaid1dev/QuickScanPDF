@@ -66,15 +66,7 @@
           "iosAppId": "ca-app-pub-1138568424665362~3611826927"
         }
       ],
-      "expo-tracking-transparency",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "2.3.0"
-          }
-        }
-      ]
+      "expo-tracking-transparency"
     ],
     "extra": {
       "router": {},
