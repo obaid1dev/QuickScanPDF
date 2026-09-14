@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -10,13 +9,17 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { STORAGE_KEYS } from '@/constants/config';
 import { getItem } from '@/lib/storage';
 import { getImagePixelSize } from '@/lib/imageProcessing';
+import { useInterstitialAd } from '@/hooks/useInterstitialAd';
+import { useInterstitialOnBack } from '@/hooks/useInterstitialOnBack';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import { savePdfToDevice } from '@/lib/fileManager';
 import type { Document } from '@/types/document';
@@ -108,6 +111,23 @@ export default function ViewDocumentScreen() {
     }
   }, [doc]);
 
+  // Preload the interstitial while the document is actually loaded, so it is
+  // likely ready by the time the user leaves. It never fires anywhere else.
+  const interstitial = useInterstitialAd(doc != null);
+  const leaveViewer = useCallback(() => {
+    router.back();
+  }, [router]);
+  const handleBack = useInterstitialOnBack(
+    interstitial,
+    leaveViewer,
+    doc != null,
+  );
+
+  const pressBack = useCallback(() => {
+    void Haptics.selectionAsync();
+    handleBack();
+  }, [handleBack]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.centered}>
@@ -142,7 +162,7 @@ export default function ViewDocumentScreen() {
         <View style={styles.header}>
           <Pressable
             hitSlop={8}
-            onPress={() => router.back()}
+            onPress={pressBack}
             style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}
             accessibilityLabel="Back"
           >
@@ -191,7 +211,9 @@ export default function ViewDocumentScreen() {
                   styles.pageImage,
                   pageSizes[index] != null && { aspectRatio: 1 / pageSizes[index] },
                 ]}
-                resizeMode="contain"
+                contentFit="contain"
+                recyclingKey={uri}
+                transition={150}
               />
               <View style={styles.pageBadge}>
                 <Text style={styles.pageBadgeText}>

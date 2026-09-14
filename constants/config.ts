@@ -18,8 +18,6 @@ export const AD_UNIT_IDS = {
     : 'ca-app-pub-1138568424665362/5141987288',
 } as const;
 
-export const INTERSTITIAL_FREQUENCY = 3;
-
 export const STORAGE_KEYS = {
   documents: 'quickscan:documents',
   downloadsDir: 'quickscan:downloads_dir',

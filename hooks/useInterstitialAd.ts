@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 import { useInterstitialAd as useLibInterstitialAd } from 'react-native-google-mobile-ads';
 import type { RequestOptions } from 'react-native-google-mobile-ads';
 import { AD_UNIT_IDS } from '@/constants/config';
@@ -35,9 +36,14 @@ export function useInterstitialAd(active = true): InterstitialController {
   const onFinishedRef = useRef<(() => void) | null>(null);
   const reloadScheduledRef = useRef(false);
 
-  // Initial preload (no-op when the ad is null).
+  // Initial preload (no-op when the ad is null). Deferred until the screen
+  // transition/interactions settle so it never competes with the JS thread
+  // during navigation.
   useEffect(() => {
-    load();
+    const task = InteractionManager.runAfterInteractions(() => {
+      load();
+    });
+    return () => task.cancel();
   }, [load]);
 
   // Reload once the shown ad closes, and again (with backoff) on load errors.
@@ -75,9 +81,19 @@ export function useInterstitialAd(active = true): InterstitialController {
       if (!available || !isLoaded) {
         return false;
       }
-      onFinishedRef.current = onFinished ?? null;
-      show();
-      return true;
+      try {
+        onFinishedRef.current = onFinished ?? null;
+        show();
+        return true;
+      } catch (e) {
+        // A failed show() must never trap the user on this screen — clear the
+        // pending callback and report "nothing shown" so the caller proceeds.
+        if (__DEV__) {
+          console.log('[QuickScan] Interstitial show() threw — leaving without an ad.', e);
+        }
+        onFinishedRef.current = null;
+        return false;
+      }
     },
     [available, isLoaded, show],
   );

@@ -401,8 +401,9 @@ export function preparePageForPdf(sourceUri: string): Promise<string> {
 }
 
 /**
- * Produces a small JPEG thumbnail (768px longest edge) for a saved scan's
- * home-screen card.
+ * Produces a small JPEG thumbnail (300px longest edge) for a saved scan's
+ * home-screen card. Keeping it small means the grid never decodes a
+ * full-resolution page just to paint a ~64px thumbnail.
  */
 const thumbnailCache = new Map<string, Promise<string>>();
 export function makeThumbnail(sourceUri: string): Promise<string> {
@@ -410,7 +411,7 @@ export function makeThumbnail(sourceUri: string): Promise<string> {
   if (cached) {
     return cached;
   }
-  const promise = resizeImageToMax(sourceUri, 768, 0.8);
+  const promise = resizeImageToMax(sourceUri, 300, 0.8);
   thumbnailCache.set(sourceUri, promise);
   return promise;
 }

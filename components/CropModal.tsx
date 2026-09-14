@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -21,6 +21,7 @@ import {
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import { colors, spacing, typography } from '@/constants/theme';
+import { getImagePixelSize } from '@/lib/imageProcessing';
 
 const HANDLE_HIT = 44;
 const HALF = HANDLE_HIT / 2;
@@ -89,19 +90,11 @@ export default function CropModal({
     setContainer(null);
     setImageSize(null);
     if (visible && sourceUri) {
-      Image.getSize(
-        sourceUri,
-        (w, h) => {
-          if (mounted) {
-            setImageSize({ width: w, height: h });
-          }
-        },
-        () => {
-          if (mounted) {
-            setImageSize(null);
-          }
-        },
-      );
+      void getImagePixelSize(sourceUri)?.then((size) => {
+        if (mounted) {
+          setImageSize(size);
+        }
+      });
     }
     return () => {
       mounted = false;
@@ -357,7 +350,8 @@ export default function CropModal({
                   left: disp.left,
                   top: disp.top,
                 }}
-                resizeMode="stretch"
+                contentFit="fill"
+                transition={150}
               />
 
               {/* Dim areas: container coordinates, always frame the crop box */}

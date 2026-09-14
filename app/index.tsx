@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  InteractionManager,
   Platform,
   Pressable,
   RefreshControl,
@@ -25,6 +26,15 @@ import { savePdfToDevice } from '@/lib/fileManager';
 import { colors, spacing, typography } from '@/constants/theme';
 import type { Document } from '@/types/document';
 
+// DocumentCard row height is fixed: 64px thumbnail + 24px vertical padding
+// + 8px margin-bottom. Constant, so FlatList can skip measuring entirely.
+const ROW_HEIGHT = 96;
+
+const getItemLayout = (
+  data: ArrayLike<Document> | null | undefined,
+  index: number,
+) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index });
+
 export default function HomeScreen() {
   const router = useRouter();
   const {
@@ -40,7 +50,12 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refresh().catch(() => undefined);
+      // Defer the storage-usage reload until the tab transition has finished
+      // so it doesn't fight the screen-enter animation for the JS thread.
+      const task = InteractionManager.runAfterInteractions(() => {
+        refresh().catch(() => undefined);
+      });
+      return () => task.cancel();
     }, [refresh]),
   );
 
@@ -108,6 +123,20 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  const renderItem = useCallback(
+    ({ item }: { item: Document }) => (
+      <DocumentCard
+        document={item}
+        onRename={rename}
+        onDownload={downloadDocument}
+        onShare={shareDocument}
+        onDelete={deleteDocument}
+        onPress={openDocument}
+      />
+    ),
+    [rename, downloadDocument, shareDocument, deleteDocument, openDocument],
+  );
+
   return (
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.safe}>
@@ -154,17 +183,13 @@ export default function HomeScreen() {
           <FlatList
             data={documents}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <DocumentCard
-                document={item}
-                onRename={rename}
-                onDownload={downloadDocument}
-                onShare={shareDocument}
-                onDelete={deleteDocument}
-                onPress={openDocument}
-              />
-            )}
+            renderItem={renderItem}
             contentContainerStyle={styles.listContent}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={7}
+            removeClippedSubviews
+            getItemLayout={getItemLayout}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}

@@ -1,12 +1,12 @@
 import React, { memo } from 'react';
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '@/constants/theme';
 import type { ScanPage } from '@/types/document';
@@ -47,7 +47,9 @@ function PageThumbnailStrip({
                 <Image
                   source={{ uri: page.processedUri }}
                   style={styles.thumb}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  recyclingKey={page.id}
+                  transition={100}
                 />
                 <View style={styles.indexBadge}>
                   <View style={styles.indexCircle}>

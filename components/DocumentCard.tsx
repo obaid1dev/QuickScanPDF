@@ -1,6 +1,5 @@
 import React, { memo, useState } from 'react';
 import {
-  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import ActionMenu, { type ActionMenuOption } from '@/components/ActionMenu';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -90,7 +90,9 @@ function DocumentCard({
             <Image
               source={{ uri: document.thumbnailUri }}
               style={styles.thumb}
-              resizeMode="cover"
+              contentFit="cover"
+              recyclingKey={document.id}
+              transition={150}
               onError={() => setImageFailed(true)}
             />
           )}

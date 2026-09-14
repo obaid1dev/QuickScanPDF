@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Image,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -33,7 +33,7 @@ import {
 } from '@/lib/fileManager';
 import { defaultScanTitle } from '@/lib/format';
 import { useInterstitialAd, incrementExportCount } from '@/hooks/useInterstitialAd';
-import { INTERSTITIAL_FREQUENCY } from '@/constants/config';
+import { useInterstitialOnBack } from '@/hooks/useInterstitialOnBack';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import type { Document } from '@/types/document';
 
@@ -57,6 +57,19 @@ export default function ShareScreen() {
   // Never load the interstitial while the PDF is being generated; only once
   // the export has succeeded and the success screen is shown.
   const interstitial = useInterstitialAd(stage === 'done');
+
+  const leaveHome = useCallback(() => {
+    router.replace('/');
+  }, [router]);
+
+  // Unified leave path — back arrow AND Android hardware back both flow
+  // through here, so the interstitial fires on every back-to-home regardless
+  // of which one the user triggered. Only armed once generation is done.
+  const handleBack = useInterstitialOnBack(
+    interstitial,
+    leaveHome,
+    stage === 'done',
+  );
 
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -280,18 +293,11 @@ export default function ShareScreen() {
 
   const goHome = () => {
     void Haptics.selectionAsync();
-    const { showAdIfReady } = interstitial;
-    void (async () => {
-      const count = await incrementExportCount();
-      if (count % INTERSTITIAL_FREQUENCY === 0) {
-        const adShown = showAdIfReady(() => router.replace('/'));
-        if (!adShown) {
-          router.replace('/');
-        }
-      } else {
-        router.replace('/');
-      }
-    })();
+    // Keep the persisted export counter updated for future analytics, but no
+    // longer use it to gate whether an ad shows — the ad now fires on every
+    // back-to-home navigation.
+    void incrementExportCount().catch(() => undefined);
+    handleBack();
   };
 
   return (
@@ -318,7 +324,8 @@ export default function ShareScreen() {
           <Image
             source={{ uri: doc.thumbnailUri }}
             style={styles.thumbnail}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={150}
           />
         ) : (
           <View style={[styles.thumbnail, styles.thumbFallback]}>

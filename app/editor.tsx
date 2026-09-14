@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
+import { Image } from 'expo-image';
 import { useIsFocused, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -325,7 +325,8 @@ export default function EditorScreen() {
                   <Image
                     source={{ uri: previewUri }}
                     style={StyleSheet.absoluteFill}
-                    resizeMode="contain"
+                    contentFit="contain"
+                    transition={100}
                   />
                 ) : (
                   <ActivityIndicator color={colors.primary} />
@@ -465,7 +466,9 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+    // Extra bottom clearance so the toolbar stays clear of the gesture-navigation
+    // area now that the Android navigation bar is hidden (edge-to-edge).
+    paddingBottom: spacing.xl,
   },
   toolRow: {
     flexDirection: 'row',
