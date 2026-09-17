@@ -18,10 +18,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ScanSessionProvider>
-          {/* Light status-bar content on the near-black app background. With
-              edge-to-edge, the status bar overlays the app's own content, so
-              no per-screen translucent/backgroundColor props are needed. */}
-          <StatusBar style="light" />
+          {/* Hidden system-wide so the app is fully immersive top-to-bottom. With
+              edge-to-edge enabled, RN's Android status-bar hide uses the modern
+              WindowInsetsController with BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+              (same behavior expo-navigation-bar applies), so a top-edge swipe
+              temporarily reveals the clock/battery and it auto-hides again.
+              style="light" keeps the icons light if/when revealed. */}
+          <StatusBar style="light" hidden />
           {/* Android only: hidden until a bottom-edge swipe temporarily reveals
               it (the system's immersive-sticky behavior), with dark icons that
               read as light content against the app's near-black background. */}

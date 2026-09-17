@@ -6,25 +6,27 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#09090B",
+    "backgroundColor": "#2C5EBD",
     "scheme": "quickscan",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#09090B"
+      "backgroundColor": "#2C5EBD"
     },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "QuickScan PDF needs camera access to scan documents, receipts, and IDs into PDF files.",
         "NSPhotoLibraryUsageDescription": "QuickScan PDF needs photo library access so you can import existing photos into your PDF.",
-        "NSUserTrackingUsageDescription": "Your scans stay on your device. This permission lets us personalize ads; declining still shows ads that are not personalized."
-      }
+        "NSUserTrackingUsageDescription": "Your scans stay on your device. This permission lets us personalize ads; declining still shows ads that are not personalized.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.obaid.dev.quickscanpdf"
     },
     "android": {
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "backgroundColor": "#09090B",
+        "backgroundColor": "#2C5EBD",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

@@ -1,4 +1,4 @@
-# Final Polish Prompt for OpenCode — Status Bar, Immersive Nav Bar, Performance
+# Final Fix Prompt for OpenCode — Hide the Status Bar App-Wide
 
 Paste everything below the `---` into OpenCode.
 
@@ -6,87 +6,37 @@ Paste everything below the `---` into OpenCode.
 
 ## TASK
 
-Do a final polish pass on QuickScan PDF covering three things: (1) status bar styling to match the dark theme, (2) hiding/making immersive the Android system navigation bar (the bottom bar with back/home/recents buttons or the gesture pill), and (3) general performance/smoothness improvements across the app. Implement all of this fully — don't leave partial config.
+The Android navigation bar (bottom) is already successfully hidden/immersive. Now also hide the status bar (top — clock, WiFi, battery, notification icons) on **every screen** in the app, so the whole app runs fully edge-to-edge/immersive on both the top and bottom, not just the bottom.
 
-## 1. STATUS BAR
+## IMPLEMENTATION
 
-- Use `expo-status-bar` (install if not already present: `npx expo install expo-status-bar`).
-- Since the app's background is near-black (`#09090B`), set the status bar style to `light` (light icons/text/time/battery indicators, since they need to be visible against a dark background) app-wide.
-- Set `translucent={true}` so the status bar overlays the app content seamlessly using the app's own background color underneath it, rather than showing a separate colored bar.
-- Apply this globally in the root layout (`app/_layout.tsx`) via the `<StatusBar style="light" translucent backgroundColor="transparent" />` component so it's consistent across every screen, not set per-screen.
-- On the Camera screen specifically, double-check the status bar still reads correctly over the live camera feed (light icons should still be visible over most camera content, but confirm no camera UI overlaps/gets hidden behind it — respect safe area insets there).
-- Use `react-native-safe-area-context` (install if missing) and wrap the app in a `SafeAreaProvider`, using `useSafeAreaInsets()` on screens with custom headers so content never renders under the status bar or any notch/punch-hole camera area.
+### 1. Update the status bar config in the root layout
+In `app/_layout.tsx`, change the existing `<StatusBar>` component (from `expo-status-bar`) from its current translucent/light setup to fully hidden:
+```tsx
+<StatusBar hidden={true} />
+```
+This should apply globally across all screens since it's set once in the root layout — remove any per-screen status bar overrides if they exist elsewhere (e.g., if the Camera screen or any other screen sets its own `<StatusBar>` config, delete that and let the root layout's `hidden={true}` apply everywhere consistently).
 
-## 2. IMMERSIVE / HIDDEN ANDROID NAVIGATION BAR
+### 2. Android: combine with the existing immersive nav bar behavior
+Since the nav bar is already using `NavigationBar.setBehaviorAsync('overlay-swipe')` (swipe-to-reveal, then auto-hide again) from the earlier immersive setup, make the status bar behave the same way for consistency — a fully hidden status bar with no way to reveal it can feel broken/glitchy to some users (e.g., they can't check the time or see if a call is coming in). Implement this using Android's system UI visibility flags so BOTH bars hide together and BOTH can be swiped-to-reveal temporarily from either edge, then auto-hide again — rather than one being swipe-revealable and the other being permanently invisible with no way to check it.
+- If `expo-status-bar`'s simple `hidden` prop doesn't support this swipe-reveal behavior on its own (it's a simpler API than the full native immersive mode), use `expo-navigation-bar`'s existing immersive setup as the single source of truth for BOTH bars together: set the same `'overlay-swipe'` behavior config to affect both system bars simultaneously (Android's edge-to-edge/immersive APIs are typically controlled together at the OS level, not independently per-bar) — check `expo-navigation-bar`'s and `expo-status-bar`'s current documentation/API for the correct combined approach given the installed Expo SDK version, since this exact API can differ between SDK versions.
+- If truly independent control isn't cleanly available, prioritize matching the existing nav bar's swipe-reveal-then-rehide behavior over a permanently-invisible status bar, so the user experience is consistent between the two bars.
 
-Android SDK 57 supports edge-to-edge layouts natively; use the modern approach rather than a deprecated one:
+### 3. iOS: hide the status bar consistently too
+- Confirm `<StatusBar hidden={true} />` from `expo-status-bar` also correctly hides it on iOS (this is a simpler, more universally supported API on iOS than Android's immersive mode nuances above).
+- If any screen uses a native modal, camera view, or full-screen presentation that manages its own status bar visibility independently (this can happen with certain camera/video components), make sure that per-screen behavior doesn't override the global hidden setting — audit the Camera screen specifically since it's the most likely place a native component might reassert its own status bar behavior.
 
-- Install/configure `expo-navigation-bar` (`npx expo install expo-navigation-bar`).
-- In `app.json`, ensure edge-to-edge is enabled for Android:
-  ```json
-  {
-    "expo": {
-      "android": {
-        "edgeToEdgeEnabled": true
-      }
-    }
-  }
-  ```
-- In the root layout, on mount (Android only, guard with `Platform.OS === 'android'`):
-  - Set the navigation bar to match the dark theme: `NavigationBar.setBackgroundColorAsync('#09090B')` and `NavigationBar.setButtonStyleAsync('light')` as a baseline, so even when visible it blends with the app.
-  - If the goal is a fully immersive experience (nav bar hidden until swiped up), use `NavigationBar.setVisibilityAsync('hidden')` combined with `NavigationBar.setBehaviorAsync('overlay-swipe')` so swiping from the bottom edge temporarily reveals it without permanently exiting immersive mode, then it auto-hides again.
-  - Be aware: on gesture-navigation Android devices (no visible 3-button bar), this mostly affects the thin gesture pill at the bottom — test on both gesture-nav and 3-button-nav devices/emulators if possible, since behavior can differ slightly.
-  - Do NOT hide the navigation bar in a way that makes the app hard to exit — always leave the gesture-swipe-to-reveal behavior intact rather than a fully locked immersive mode with no escape.
-- iOS has no equivalent system nav bar to hide (the home indicator is separate and shouldn't be manipulated) — skip any iOS-specific handling here beyond normal safe-area respect.
-
-## 3. APP ICON / LOGO
-
-I'm providing a logo image to use as the app icon: a document-scan icon (dark navy document with a folded corner, four corner scan-frame brackets, and a glowing blue horizontal scan line through the middle), saved as `assets/images/icon-source.png`. It's a **1254×1254px transparent PNG** (fully transparent background, no white fill behind it). Set it up correctly so it does NOT get zoomed in, cropped, or distorted the way a previous app's icon did — this is a common mistake with Expo/Android adaptive icons, so follow these exact rules:
-
-- Treat `assets/images/icon-source.png` as the FULL, uncropped artwork — do not assume it's already safe-zoned for adaptive icons.
-- **Important specific risk with this exact image**: the four corner scan-frame brackets extend close to the edges of the 1254×1254 canvas, much closer than the document graphic in the center. If this image is used directly as the Android adaptive icon foreground without extra padding, the OS's circular/squircle mask WILL clip into those corner brackets first — this is very likely what happened to the previous app's icon. Do not skip the safe-zone padding step below for this reason.
-- For the main app icon (`app.json` → `expo.icon`), resize the 1254×1254 source down to exactly **1024×1024px** (a clean uniform downscale, since it's already square — do not stretch or crop). Since the source has a transparent background, decide on a solid background fill for the main (non-adaptive) icon slot if the target store/platform doesn't support a transparent app icon well — use the app's theme background `#09090B` behind the logo rather than leaving it transparent, unless you confirm transparency is safe for the icon slot being generated.
-- For **Android adaptive icons** specifically (`app.json` → `expo.android.adaptiveIcon`), understand that Android only guarantees roughly the center ~66% of the foreground image is safely visible in all icon mask shapes (circle, squircle, rounded square, etc.) — the outer portion can be cropped by the OS depending on the launcher. This is almost certainly what caused the previous app's icon to look "zoomed in": the full logo was used as the adaptive foreground with no safe padding, so the OS's mask cropped into the actual artwork.
-  - Fix: create the adaptive icon foreground with the logo scaled down and centered within that image, leaving comfortable transparent padding around it (roughly 20–25% margin on each side) so that even when the OS crops to its safe zone, the full logo is still visible and nothing important gets cut off.
-  - Set `expo.android.adaptiveIcon.backgroundColor` to a solid color that matches the app's theme (e.g. `#09090B` or a complementary shade) rather than leaving it transparent/default, so the padding around the logo looks intentional rather than like empty space.
-- For the splash screen (`expo.splash` / `expo.plugins` splash config), use the same logo but sized moderately (not full-bleed) centered on a background matching the app's dark theme color, with similar safe padding logic — don't let the splash logo touch the screen edges either.
-- After generating icons, actually build and install the app (not just check in an emulator's icon preview, which can render differently than a real launcher) and visually confirm on a real or emulated Android home screen that the logo appears fully visible, centered, and not stretched/cropped/zoomed, across at least two different icon mask shapes if your test launcher supports switching them (Settings → icon shape, on launchers that support it).
-- Do the same visual check for iOS if targeting it — iOS doesn't mask-crop icons the way Android does, but still confirm the corner-rounding (applied automatically by iOS) doesn't clip any important part of the logo, and pad slightly if it does.
-
-## 4. PERFORMANCE / SMOOTHNESS PASS
-
-Go through the app and apply these optimizations wherever applicable — this is a general pass, not a single bug fix, so check every screen/component listed:
-
-### Lists and rendering
-- On the Dashboard's document grid (`FlatList`), add: `removeClippedSubviews={true}`, a sensible `windowSize`, `maxToRenderPerBatch`, and `initialNumToRender` tuned for a 2-column grid, and `getItemLayout` if row heights are fixed/predictable (avoids expensive layout measurement).
-- Wrap `DocumentCard` and other list-rendered components in `React.memo`, and make sure any inline arrow functions passed as `onPress` props to list items are wrapped in `useCallback` so list items don't re-render unnecessarily on every Dashboard re-render.
-
-### Images
-- Replace React Native's built-in `Image` component with `expo-image` (`npx expo install expo-image`) everywhere thumbnails/photos are displayed (Dashboard cards, Editor preview, PDF viewer, filter thumbnails) — it has built-in caching, better memory handling, and smoother loading/transition behavior than the core `Image` component.
-- For document thumbnails specifically, generate and cache a small downscaled thumbnail (e.g. 200–300px wide) separately from the full-resolution page image, rather than rendering the full-size image scaled down at render time — this avoids decoding large images just to show a small grid thumbnail. Store the thumbnail path alongside the document's metadata.
-
-### Heavy work off the interaction path
-- Ensure image manipulation calls (`expo-image-manipulator` rotate/filter operations) and PDF generation (`expo-print`) don't block UI feedback — confirm loading states are shown immediately (before the heavy async call starts) rather than only after, so taps feel instantly acknowledged even while processing continues.
-- Where reasonable, wrap non-urgent post-navigation work (like kicking off the next interstitial preload, or refreshing storage-usage stats on the Dashboard) in `InteractionManager.runAfterInteractions()` so it doesn't compete with an in-progress screen transition animation for the JS thread.
-
-### General React hygiene
-- Audit for unnecessary re-renders: any context (`useScanSession`, ad consent state, etc.) that changes frequently should be scoped tightly so it doesn't force unrelated components to re-render. Split contexts if one large context is causing broad re-renders from small, frequent updates.
-- Memoize expensive derived values (e.g., formatted file sizes/dates on the Dashboard list, filtered/sorted document lists) with `useMemo` instead of recomputing on every render.
-
-### Native/build-level
-- Confirm the New Architecture (Fabric/TurboModules) is enabled if the installed Expo SDK/RN version supports it well for all currently-used native modules (check for any known incompatibilities with `expo-camera`, `expo-print`, or `react-native-google-mobile-ads` first — don't enable it if it would break camera or ads functionality; if uncertain, leave it as-is and note that decision rather than guessing).
-- Confirm Hermes is the JS engine (default in modern Expo, but verify it wasn't accidentally overridden).
+### 4. Safe area handling — important, don't skip
+Since the status bar is now hidden everywhere, re-check every screen that previously relied on `useSafeAreaInsets()` top inset to avoid overlapping the status bar area. With the status bar hidden, content can often extend further up than before — decide intentionally, per screen, whether content should now use that reclaimed space (e.g., Dashboard header can sit slightly higher) or whether you still want a consistent top padding for visual balance even without a visible status bar. Don't leave awkward empty gaps at the top of screens that were previously sized around a visible status bar that no longer exists.
 
 ## TESTING CHECKLIST
 
-0. App icon appears full, centered, and undistorted on the home screen and app drawer — no cropped edges, no stretching, no unexpected zoom — and the splash screen logo is similarly clean.
-1. Status bar text/icons are clearly visible (light) against the dark app background on every screen, including over the camera feed.
-2. No content is clipped under the status bar or a notch/punch-hole on any screen.
-3. Android navigation bar matches the dark theme when visible, and (if immersive mode was implemented) hides during normal use and reappears smoothly on a bottom-edge swipe without breaking normal back/home navigation.
-4. Scrolling the Dashboard document grid feels smooth even with 20+ documents (no visible jank/frame drops).
-5. Thumbnails load quickly and don't cause a visible flash/pop-in of a broken image state.
-6. Tapping any primary action (shutter, convert to PDF, share) gives instant visual feedback, even if the underlying operation takes a moment.
+1. Status bar (clock/WiFi/battery/notifications) is not visible on any screen: Dashboard, Camera, Editor, Share, Settings, and the PDF viewer.
+2. Confirm you can still briefly reveal both the status bar and nav bar together via an edge swipe if that's the implemented behavior, and they auto-hide again shortly after — the app shouldn't feel like the user has zero way to ever check the time/battery.
+3. No screen has an awkward empty gap or, conversely, content jammed too close to the very top edge of the physical screen (accounting for camera notches/punch-holes) now that the status bar space is reclaimed.
+4. Test on both Android and iOS if shipping both — confirm the behavior is clean on each, since the underlying APIs differ.
+5. Confirm the Camera screen specifically still displays correctly full-screen with no native component re-asserting a visible status bar.
 
 ## DELIVERABLE
 
-Summarize what was changed for each of the four areas, confirm the app still builds and runs correctly on a real dev/production build afterward, and flag anything you deliberately chose NOT to change (e.g., New Architecture) along with why.
+Confirm which files were changed, whether the status bar is fully hidden with swipe-to-reveal (matching the nav bar) or permanently hidden with no reveal (state which one was achieved and why, if the swipe-reveal wasn't cleanly possible), and confirm no screen has broken safe-area spacing as a result of this change.
