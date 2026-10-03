@@ -44,10 +44,13 @@ export function useDocuments(): UseDocumentsValue {
   }, [load]);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     setError(null);
+    // Deliberately does NOT toggle `loading`: toggling it here would blank the
+    // dashboard to a spinner and unmount the whole list on every focus/pull-to-
+    // refresh, forcing all thumbnails to decode again. The initial mount shows
+    // the spinner via the default `loading=true`; later refreshes update in
+    // place.
     await load().catch(() => setError('Could not refresh scan history.'));
-    setLoading(false);
   }, [load]);
 
   const persist = useCallback(async (next: Document[]) => {

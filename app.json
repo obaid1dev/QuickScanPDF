@@ -36,7 +36,6 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO",
         "com.google.android.gms.permission.AD_ID"
       ],
       "package": "com.obaid.dev.quickscanpdf"
@@ -48,14 +47,6 @@
       "expo-router",
       "expo-sharing",
       "expo-font",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "QuickScan PDF needs camera access to scan documents, receipts, and IDs into PDF files.",
-          "microphonePermission": false,
-          "recordAudioAndroid": false
-        }
-      ],
       [
         "expo-image-picker",
         {

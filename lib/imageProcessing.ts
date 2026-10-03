@@ -259,8 +259,43 @@ export async function applyColorFilter(
  * Memoized decoder for a page's color-filter disk copies. The first call for a
  * given (filter, base) renders the JPEG; later calls for the same pair return
  * the cached promise, so re-triggering a pre-compute is free.
+ *
+ * Renders are serialized through a tiny concurrency pool: a multi-page scan
+ * pre-computes two variants per page, and letting them all render at once
+ * would decode full-resolution images and allocate one Skia surface each —
+ * enough to spike memory/CPU and stall the UI thread. Capping it bounds the
+ * peak to two surfaces at a time.
  */
 const filterVariantCache = new Map<string, Promise<string>>();
+
+const MAX_FILTER_CONCURRENCY = 2;
+let activeFilterJobs = 0;
+const filterJobQueue: Array<() => Promise<unknown>> = [];
+
+function runWithConcurrency<T>(job: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const run = async () => {
+      activeFilterJobs += 1;
+      try {
+        resolve(await job());
+      } catch (e) {
+        reject(e);
+      } finally {
+        activeFilterJobs -= 1;
+        const next = filterJobQueue.shift();
+        if (next) {
+          void next();
+        }
+      }
+    };
+    if (activeFilterJobs < MAX_FILTER_CONCURRENCY) {
+      void run();
+    } else {
+      filterJobQueue.push(run);
+    }
+  });
+}
+
 export function getFilterVariant(
   sourceUri: string,
   filter: Exclude<FilterType, 'original'>,
@@ -273,7 +308,7 @@ export function getFilterVariant(
   if (filterVariantCache.size > 512) {
     filterVariantCache.clear();
   }
-  const promise = applyColorFilter(sourceUri, filter);
+  const promise = runWithConcurrency(() => applyColorFilter(sourceUri, filter));
   filterVariantCache.set(key, promise);
   return promise;
 }
