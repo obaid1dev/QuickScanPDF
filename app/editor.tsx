@@ -26,10 +26,11 @@ import CropModal from '@/components/CropModal';
 import type { CropRect } from '@/components/CropModal';
 import { useScanSession } from '@/hooks/useScanSession';
 import {
-  applyColorFilter,
   applyRotation,
   cropImage,
   filterColorMatrix,
+  getFilterVariant,
+  precomputeVariants,
 } from '@/lib/imageProcessing';
 import { colors, spacing, typography } from '@/constants/theme';
 import type { FilterType } from '@/types/document';
@@ -58,6 +59,7 @@ export default function EditorScreen() {
     isActive,
     setCurrentPage,
     updatePage,
+    getPage,
     removePage,
     clearSession,
   } = useScanSession();
@@ -133,7 +135,7 @@ export default function EditorScreen() {
         const processed =
           filter === 'original'
             ? sourceUri
-            : await applyColorFilter(sourceUri, filter);
+            : await getFilterVariant(sourceUri, filter);
         if (seq === seqRef.current) {
           updatePage(id, { processedUri: processed });
         }
@@ -142,6 +144,26 @@ export default function EditorScreen() {
           updatePage(id, { processedUri: sourceUri });
         }
       }
+    },
+    [updatePage],
+  );
+
+  // Stores a finished B&W/Magic variant on the given page, keyed by the base
+  // URI it was rendered from. Additive merges make racing pre-computes (e.g.
+  // rotate while a prior rotate is still finishing) harmless.
+  const storeVariant = useCallback(
+    (
+      id: string,
+      baseUri: string,
+      filter: 'bw' | 'magic_color',
+      uri: string,
+    ) => {
+      updatePage(id, (prev) => ({
+        variants: {
+          ...(prev.variants ?? {}),
+          [baseUri]: { ...(prev.variants?.[baseUri] ?? {}), [filter]: uri },
+        },
+      }));
     },
     [updatePage],
   );
@@ -155,23 +177,30 @@ export default function EditorScreen() {
       const seq = ++seqRef.current;
       const { id, originalUri, rotation } = activePage;
       // The selection + preview update synchronously (the canvas applies the
-      // color matrix declaratively); the disk copy is rebuilt in the background
-      // for thumbnails and PDF assembly. The base is re-derived from the page's
-      // rotation state rather than the in-flight `baseUri` so a filter tapped
-      // during the rotate-base rebuild can never bake a stale (unrotated) copy.
+      // color matrix declaratively); the disk copy is swapped or rebuilt after.
       updatePage(id, { filter });
       try {
         const base = await applyRotation(originalUri, rotation);
-        if (seq === seqRef.current) {
-          await finalize(id, base, filter, seq);
+        if (seq !== seqRef.current) {
+          return;
         }
+        if (filter !== 'original') {
+          // Instant path: a variant was pre-computed for this exact base.
+          const variantUri = getPage(id)?.variants?.[base]?.[filter];
+          if (variantUri) {
+            updatePage(id, { processedUri: variantUri });
+            return;
+          }
+        }
+        // Fallback: encode the disk copy on demand (thumbnails + PDF assembly).
+        await finalize(id, base, filter, seq);
       } catch {
         if (seq === seqRef.current) {
           await finalize(id, originalUri, filter, seq).catch(() => undefined);
         }
       }
     },
-    [activePage, updatePage, finalize],
+    [activePage, updatePage, getPage, finalize],
   );
 
   const rotate = async () => {
@@ -191,6 +220,11 @@ export default function EditorScreen() {
       updatePage(id, { rotation: nextRotation, processedUri: rotated });
       resetZoom();
       await finalize(id, rotated, activeRef.current?.filter ?? activePage.filter, seq);
+      // Warm the filter variants for the new rotation-only base in the
+      // background so the next filter tap is instant.
+      precomputeVariants(rotated, (filter, variantUri) =>
+        storeVariant(id, rotated, filter, variantUri),
+      );
     } catch {
       if (seq === seqRef.current) {
         Alert.alert('Rotate failed', 'Could not rotate this page.');
@@ -219,6 +253,11 @@ export default function EditorScreen() {
       });
       resetZoom();
       await finalize(id, cropped, activeRef.current?.filter ?? filter, seq);
+      // Warm the filter variants for the cropped base so the next filter tap
+      // switches instantly.
+      precomputeVariants(cropped, (variantFilter, variantUri) =>
+        storeVariant(id, cropped, variantFilter, variantUri),
+      );
     } catch {
       if (seq === seqRef.current) {
         Alert.alert('Crop failed', 'Could not crop this page.');

@@ -256,6 +256,47 @@ export async function applyColorFilter(
 }
 
 /**
+ * Memoized decoder for a page's color-filter disk copies. The first call for a
+ * given (filter, base) renders the JPEG; later calls for the same pair return
+ * the cached promise, so re-triggering a pre-compute is free.
+ */
+const filterVariantCache = new Map<string, Promise<string>>();
+export function getFilterVariant(
+  sourceUri: string,
+  filter: Exclude<FilterType, 'original'>,
+): Promise<string> {
+  const key = `${filter}|${sourceUri}`;
+  const cached = filterVariantCache.get(key);
+  if (cached) {
+    return cached;
+  }
+  if (filterVariantCache.size > 512) {
+    filterVariantCache.clear();
+  }
+  const promise = applyColorFilter(sourceUri, filter);
+  filterVariantCache.set(key, promise);
+  return promise;
+}
+
+/**
+ * Kicks off background rendering of a page's B&W and Magic Color variants for
+ * the given rotation-only base URI. `onVariant` is called once per finished
+ * filter so the caller can store each result as soon as it lands (partial
+ * progress beats waiting for both).
+ */
+export function precomputeVariants(
+  sourceUri: string,
+  onVariant: (filter: 'bw' | 'magic_color', uri: string) => void,
+): void {
+  getFilterVariant(sourceUri, 'bw')
+    .then((uri) => onVariant('bw', uri))
+    .catch(() => undefined);
+  getFilterVariant(sourceUri, 'magic_color')
+    .then((uri) => onVariant('magic_color', uri))
+    .catch(() => undefined);
+}
+
+/**
  * Resolves the pixel dimensions of an image via React Native's decoder.
  * Returns null when the image cannot be measured (missing/undecodable file).
  */

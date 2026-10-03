@@ -9,13 +9,18 @@ import React, {
 } from 'react';
 import type { ScanPage } from '@/types/document';
 
+export type ScanPagePatch =
+  | Partial<ScanPage>
+  | ((prev: ScanPage) => Partial<ScanPage>);
+
 export interface ScanSessionValue {
   pages: ScanPage[];
   currentPageId: string | null;
   activePage: ScanPage | null;
   isActive: boolean;
   addPage: (originalUri: string) => string;
-  updatePage: (id: string, patch: Partial<ScanPage>) => void;
+  updatePage: (id: string, patch: ScanPagePatch) => void;
+  getPage: (id: string) => ScanPage | null;
   removePage: (id: string) => boolean;
   setCurrentPage: (id: string) => void;
   clearSession: () => void;
@@ -66,12 +71,23 @@ export function ScanSessionProvider({ children }: { children: React.ReactNode })
     return id;
   }, []);
 
-  const updatePage = useCallback((id: string, patch: Partial<ScanPage>) => {
-    pagesRef.current = pagesRef.current.map((p) =>
-      p.id === id ? { ...p, ...patch } : p,
-    );
+  const updatePage = useCallback((id: string, patch: ScanPagePatch) => {
+    pagesRef.current = pagesRef.current.map((p) => {
+      if (p.id !== id) {
+        return p;
+      }
+      const resolved =
+        typeof patch === 'function' ? patch(p) : patch;
+      return { ...p, ...resolved };
+    });
     setPages(pagesRef.current);
   }, []);
+
+  const getPage = useCallback(
+    (id: string): ScanPage | null =>
+      pagesRef.current.find((p) => p.id === id) ?? null,
+    [],
+  );
 
   const removePage = useCallback((id: string): boolean => {
     const prev = pagesRef.current;
@@ -113,11 +129,12 @@ export function ScanSessionProvider({ children }: { children: React.ReactNode })
       isActive: pages.length > 0,
       addPage,
       updatePage,
+      getPage,
       removePage,
       setCurrentPage,
       clearSession,
     };
-  }, [pages, currentPageId, addPage, updatePage, removePage, setCurrentPage, clearSession]);
+  }, [pages, currentPageId, addPage, updatePage, getPage, removePage, setCurrentPage, clearSession]);
 
   return (
     <ScanSessionContext.Provider value={value}>
