@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { ADS_ENABLED, AD_UNIT_IDS } from '@/constants/config';
-import { getAdsConsentPersonalized, isAdsAvailable } from '@/lib/ads';
+import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
 
 // Backoff between banner (re)load attempts. A single failure must never kill
 // the banner for the session — fresh ad units and slow-filling builds commonly
@@ -12,7 +11,8 @@ const RETRY_BACKOFF_MS = [3000, 6000, 12000, 30000];
 
 /**
  * Anchored adaptive banner for the Dashboard. Fully opt-in via ADS_ENABLED and
- * disabled when the AdMob native module is absent (Expo Go).
+ * never renders when the AdMob native addon is absent (Expo Go) — the SDK
+ * itself is loaded lazily so this module does not blow up the route bundle.
  *
  * Robust to a flaky network / slow first fill: on a load failure it waits,
  * then remounts a fresh BannerAd (new request). The retry budget resets
@@ -20,10 +20,38 @@ const RETRY_BACKOFF_MS = [3000, 6000, 12000, 30000];
  * was away gets another chance on every visit home.
  */
 export default function AdBanner() {
+  const [adsModule, setAdsModule] = useState<
+    typeof import('react-native-google-mobile-ads') | null
+  >(null);
+  const [unsupported, setUnsupported] = useState(false);
   const [nonce, setNonce] = useState(0);
   const [giveUp, setGiveUp] = useState(false);
   const failCountRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load the AdMob module once, safely. In Expo Go the dynamic import fails
+  // (native addon missing) and the banner permanently stays out of the way.
+  useEffect(() => {
+    if (!ADS_ENABLED) {
+      return;
+    }
+    let cancelled = false;
+    const boot = async () => {
+      const mod = await loadAdsModule();
+      if (cancelled) {
+        return;
+      }
+      if (!mod) {
+        setUnsupported(true);
+        return;
+      }
+      setAdsModule(mod);
+    };
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -63,9 +91,11 @@ export default function AdBanner() {
     }, delay);
   }, []);
 
-  if (!ADS_ENABLED || giveUp || !isAdsAvailable()) {
+  if (!ADS_ENABLED || unsupported || giveUp || !adsModule) {
     return null;
   }
+
+  const { BannerAd, BannerAdSize } = adsModule;
 
   // RNGMA's BannerAd does not forward standard View props; an adaptive banner
   // explicitly sized to the device width measures the slot correctly (the

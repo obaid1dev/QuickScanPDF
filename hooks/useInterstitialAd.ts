@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
-import { useInterstitialAd as useLibInterstitialAd } from 'react-native-google-mobile-ads';
-import type { RequestOptions } from 'react-native-google-mobile-ads';
-import { AD_UNIT_IDS } from '@/constants/config';
-import { getAdsConsentPersonalized, isAdsAvailable } from '@/lib/ads';
+import type { InterstitialAd as RNGInterstitialAd } from 'react-native-google-mobile-ads';
+import { AD_UNIT_IDS, STORAGE_KEYS } from '@/constants/config';
+import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
 import { getItem, setItem } from '@/lib/storage';
-import { STORAGE_KEYS } from '@/constants/config';
 
 export interface InterstitialController {
   /**
@@ -17,73 +15,146 @@ export interface InterstitialController {
   isLoaded: boolean;
 }
 
+// NOTE: RNGMA's public package is never statically imported at runtime here —
+// its native spec modules call `TurboModuleRegistry.getEnforcing` at
+// evaluation time, which crashes Expo Go at bundle start. Only the *type* of
+// `InterstitialAd` is imported (erased at compile time); the live module is
+// fetched on demand via `loadAdsModule()`.
+
 /**
  * Preloads and controls the full-screen interstitial for the Share success
  * screen. Passing `active = false` (e.g. while PDF generation is processing)
  * destroys the ad so nothing is preloaded until the export has finished.
  */
 export function useInterstitialAd(active = true): InterstitialController {
-  const available = isAdsAvailable() && active;
-  const requestOptionsRef = useRef<RequestOptions>({
-    requestNonPersonalizedAdsOnly: !getAdsConsentPersonalized(),
-  });
-
-  const { isLoaded, isClosed, error, load, show } = useLibInterstitialAd(
-    available ? AD_UNIT_IDS.interstitial : null,
-    requestOptionsRef.current,
-  );
-
+  const [isLoaded, setIsLoaded] = useState(false);
+  const adRef = useRef<RNGInterstitialAd | null>(null);
+  const removeListenersRef = useRef<(() => void) | null>(null);
   const onFinishedRef = useRef<(() => void) | null>(null);
+  const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const reloadScheduledRef = useRef(false);
 
-  // Initial preload (no-op when the ad is null). Deferred until the screen
-  // transition/interactions settle so it never competes with the JS thread
-  // during navigation.
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      load();
-    });
-    return () => task.cancel();
-  }, [load]);
+    let cancelled = false;
 
-  // Reload once the shown ad closes, and again (with backoff) on load errors.
-  useEffect(() => {
-    if (isClosed && !reloadScheduledRef.current) {
-      reloadScheduledRef.current = true;
-      const t = setTimeout(() => {
-        reloadScheduledRef.current = false;
-        load();
-      }, 600);
-      return () => clearTimeout(t);
-    }
-  }, [isClosed, load]);
+    const clearTimers = () => {
+      timersRef.current.forEach((t) => clearTimeout(t));
+      timersRef.current = [];
+    };
+    const addTimer = (t: ReturnType<typeof setTimeout>) => {
+      timersRef.current.push(t);
+    };
 
-  useEffect(() => {
-    if (error) {
-      const t = setTimeout(() => {
-        load();
-      }, 5000);
-      return () => clearTimeout(t);
-    }
-  }, [error, load]);
+    const teardown = () => {
+      clearTimers();
+      removeListenersRef.current?.();
+      removeListenersRef.current = null;
+      adRef.current?.removeAllListeners();
+      adRef.current = null;
+      setIsLoaded(false);
+    };
 
-  // Fire the post-ad callback exactly once, when the ad finishes closing.
-  useEffect(() => {
-    if (isClosed && onFinishedRef.current) {
-      const cb = onFinishedRef.current;
-      onFinishedRef.current = null;
-      cb();
+    if (!active) {
+      teardown();
+      return undefined;
     }
-  }, [isClosed]);
+
+    const loadWithDelay = (ad: RNGInterstitialAd, delayMs: number) => {
+      clearTimers();
+      addTimer(
+        setTimeout(() => {
+          // Defer the actual request until navigation/interactions settle so
+          // the network/serialize work never competes with the JS thread
+          // during the screen transition.
+          InteractionManager.runAfterInteractions(() => {
+            if (!cancelled && adRef.current === ad) {
+              try {
+                ad.load();
+              } catch {
+                // A failed request must never crash; ERROR event handles retry.
+              }
+            }
+          });
+        }, delayMs),
+      );
+    };
+
+    (async () => {
+      const mod = await loadAdsModule();
+      if (cancelled || !mod) {
+        return;
+      }
+      const { InterstitialAd, AdEventType } = mod;
+      const ad = InterstitialAd.createForAdRequest(AD_UNIT_IDS.interstitial, {
+        requestNonPersonalizedAdsOnly: !getAdsConsentPersonalized(),
+      });
+      adRef.current = ad;
+
+      const unsubscribers = [
+        ad.addAdEventListener(AdEventType.LOADED, () => {
+          if (!cancelled && adRef.current === ad) {
+            setIsLoaded(true);
+          }
+        }),
+        ad.addAdEventListener(AdEventType.ERROR, () => {
+          if (cancelled || adRef.current !== ad) {
+            return;
+          }
+          setIsLoaded(false);
+          // Backoff retry: transient no-fills are common on fresh builds.
+          loadWithDelay(ad, 5000);
+        }),
+        ad.addAdEventListener(AdEventType.CLOSED, () => {
+          if (cancelled || adRef.current !== ad) {
+            return;
+          }
+          const cb = onFinishedRef.current;
+          onFinishedRef.current = null;
+          if (cb) {
+            cb();
+          }
+          setIsLoaded(false);
+          // Reload for the next visit, but pause briefly so the ad-sheet
+          // dismissal animation isn't competing with a new request.
+          if (!reloadScheduledRef.current) {
+            reloadScheduledRef.current = true;
+            addTimer(
+              setTimeout(() => {
+                reloadScheduledRef.current = false;
+                loadWithDelay(ad, 0);
+              }, 600),
+            );
+          }
+        }),
+      ];
+      removeListenersRef.current = () => {
+        unsubscribers.forEach((u) => u());
+      };
+
+      // Initial preload (deferred).
+      loadWithDelay(ad, 0);
+    })();
+
+    return () => {
+      cancelled = true;
+      teardown();
+    };
+  }, [active]);
 
   const showAdIfReady = useCallback(
     (onFinished?: () => void): boolean => {
-      if (!available || !isLoaded) {
+      const ad = adRef.current;
+      if (!ad || !isLoaded) {
         return false;
       }
       try {
         onFinishedRef.current = onFinished ?? null;
-        show();
+        void ad.show().catch((e) => {
+          if (__DEV__) {
+            console.log('[QuickScan] Interstitial show() rejected.', e);
+          }
+          onFinishedRef.current = null;
+        });
         return true;
       } catch (e) {
         // A failed show() must never trap the user on this screen — clear the
@@ -95,7 +166,7 @@ export function useInterstitialAd(active = true): InterstitialController {
         return false;
       }
     },
-    [available, isLoaded, show],
+    [isLoaded],
   );
 
   return { showAdIfReady, isLoaded };

@@ -1,33 +1,45 @@
 import { Platform } from 'react-native';
-import { MobileAds, AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 import { ADS_ENABLED } from '@/constants/config';
 
-let availabilityChecked = false;
-let adsAvailable = false;
-
-let consentPersonalized = false;
+/**
+ * The AdMob JS module MUST NOT be eagerly imported anywhere. Its native spec
+ * modules resolve `TurboModuleRegistry.getEnforcing(...)` at evaluation time,
+ * which throws when the AdMob native addon is absent (Expo Go). A single
+ * static import at the top of a route file therefore takes down the whole
+ * bundle, and expo-router reports every route as "missing default export".
+ *
+ * Everything in this file, plus the banner and interstitial components, loads
+ * the module via `loadAdsModule()` (dynamic import, try/catch) so the SDK only
+ * ever evaluates in builds where the native module actually exists (dev/EAS
+ * builds, and the published APK/AAB).
+ */
+let adsModule: typeof import('react-native-google-mobile-ads') | null = null;
+let adsModuleFailed = false;
 
 /**
- * Whether the AdMob native module is linked AND ads are enabled. In Expo Go the
- * native module does not exist and calling it would throw, so every ad code
- * path checks this first and fully no-ops. Real ads (and the SDK) only run in
- * development/EAS builds.
+ * Memoized, safe loader for the AdMob JS module. Resolves `null` (never
+ * throws) when ads are disabled or the native addon is missing, so callers can
+ * just `const mod = await loadAdsModule(); if (!mod) return;`.
  */
-export function isAdsAvailable(): boolean {
-  if (!ADS_ENABLED) {
-    return false;
+export async function loadAdsModule(): Promise<
+  typeof import('react-native-google-mobile-ads') | null
+> {
+  if (adsModule) {
+    return adsModule;
   }
-  if (!availabilityChecked) {
-    availabilityChecked = true;
-    try {
-      MobileAds();
-      adsAvailable = true;
-    } catch {
-      adsAvailable = false;
-    }
+  if (adsModuleFailed || !ADS_ENABLED) {
+    return null;
   }
-  return adsAvailable;
+  try {
+    adsModule = await import('react-native-google-mobile-ads');
+    return adsModule;
+  } catch {
+    adsModuleFailed = true;
+    return null;
+  }
 }
+
+let consentPersonalized = false;
 
 /** Whether the user permitted personalized ads (UMP consent + iOS ATT). */
 export function getAdsConsentPersonalized(): boolean {
@@ -49,50 +61,56 @@ export function setAdsConsentPersonalized(value: boolean): void {
  * never blocks or hard-errors.
  */
 export async function initializeAds(): Promise<void> {
-  if (!isAdsAvailable()) {
-    return;
-  }
+  try {
+    const mod = await loadAdsModule();
+    if (!mod) {
+      return;
+    }
+    const { AdsConsent, AdsConsentStatus, MobileAds } = mod;
 
-  if (Platform.OS === 'ios') {
+    if (Platform.OS === 'ios') {
+      try {
+        const { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } =
+          require('expo-tracking-transparency') as typeof import('expo-tracking-transparency');
+        const status = await getTrackingPermissionsAsync();
+        if (status.status === 'undetermined') {
+          await requestTrackingPermissionsAsync();
+        }
+      } catch {
+        // ATT failure is non-fatal: fall through to non-personalized ads.
+      }
+    }
+
+    let personalized = false;
     try {
-      const { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } =
-        require('expo-tracking-transparency') as typeof import('expo-tracking-transparency');
-      const status = await getTrackingPermissionsAsync();
-      if (status.status === 'undetermined') {
-        await requestTrackingPermissionsAsync();
+      const consentInfo = await AdsConsent.requestInfoUpdate();
+      const needsForm =
+        consentInfo.isConsentFormAvailable &&
+        (consentInfo.status === AdsConsentStatus.UNKNOWN ||
+          consentInfo.status === AdsConsentStatus.REQUIRED);
+
+      if (needsForm) {
+        const result = await AdsConsent.showForm();
+        personalized = result.status === AdsConsentStatus.OBTAINED;
+      } else if (consentInfo.status === AdsConsentStatus.REQUIRED) {
+        // Consent required but no form available — stay non-personalized.
+        personalized = false;
+      } else {
+        // NOT_REQUIRED / OBTAINED without a form: personalized ads are allowed.
+        personalized = true;
       }
     } catch {
-      // ATT failure is non-fatal: fall through to non-personalized ads.
-    }
-  }
-
-  let personalized = false;
-  try {
-    const consentInfo = await AdsConsent.requestInfoUpdate();
-    const needsForm =
-      consentInfo.isConsentFormAvailable &&
-      (consentInfo.status === AdsConsentStatus.UNKNOWN ||
-        consentInfo.status === AdsConsentStatus.REQUIRED);
-
-    if (needsForm) {
-      const result = await AdsConsent.showForm();
-      personalized = result.status === AdsConsentStatus.OBTAINED;
-    } else if (consentInfo.status === AdsConsentStatus.REQUIRED) {
-      // Consent required but no form available — stay non-personalized.
+      // Consent info unreachable (offline/Expo Go) — assume non-personalized.
       personalized = false;
-    } else {
-      // NOT_REQUIRED / OBTAINED without a form: personalized ads are allowed.
-      personalized = true;
+    }
+    setAdsConsentPersonalized(personalized);
+
+    try {
+      await MobileAds().initialize();
+    } catch {
+      // SDK init failure must never crash or block the app.
     }
   } catch {
-    // Consent info unreachable (offline/Expo Go) — assume non-personalized.
-    personalized = false;
-  }
-  setAdsConsentPersonalized(personalized);
-
-  try {
-    await MobileAds().initialize();
-  } catch {
-    // SDK init failure must never crash or block the app.
+    // Any setup failure must never crash or block the app.
   }
 }
