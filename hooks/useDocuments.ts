@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Document } from '@/types/document';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
-import { deleteDocumentFiles, getTotalScansSizeBytes, formatBytes } from '@/lib/fileManager';
+import {
+  deleteAllScansFiles,
+  deleteDocumentFiles,
+  getTotalScansSizeBytes,
+  formatBytes,
+} from '@/lib/fileManager';
 
 export interface UseDocumentsValue {
   documents: Document[];
@@ -11,6 +16,7 @@ export interface UseDocumentsValue {
   create: (doc: Document) => Promise<Document>;
   rename: (id: string, title: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  clearAll: () => Promise<void>;
   totalStorageBytes: number;
   totalStorageLabel: string;
 }
@@ -94,6 +100,18 @@ export function useDocuments(): UseDocumentsValue {
     [documents, persist],
   );
 
+  /**
+   * Wipes the entire scan history in one action: every scan file is removed
+   * with a single recursive folder delete, and the metadata index is cleared
+   * with a single storage write. Deliberately NOT a loop of `remove(id)` —
+   * that persisted (and re-rendered) once per document, which is what made the
+   * button look like it was deleting documents one at a time.
+   */
+  const clearAll = useCallback(async (): Promise<void> => {
+    deleteAllScansFiles();
+    await persist([]);
+  }, [persist]);
+
   return {
     documents,
     loading,
@@ -102,6 +120,7 @@ export function useDocuments(): UseDocumentsValue {
     create,
     rename,
     remove,
+    clearAll,
     totalStorageBytes,
     totalStorageLabel: formatBytes(totalStorageBytes),
   };

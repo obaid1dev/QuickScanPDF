@@ -64,9 +64,11 @@ export async function initializeAds(): Promise<void> {
   try {
     const mod = await loadAdsModule();
     if (!mod) {
+      console.log('[QuickScan] Ads: AdMob module unavailable (Expo Go or ads off) — skipping ads.');
       return;
     }
     const { AdsConsent, AdsConsentStatus, MobileAds } = mod;
+    console.log('[QuickScan] Ads: AdMob module loaded, initializing SDK…');
 
     if (Platform.OS === 'ios') {
       try {
@@ -104,11 +106,17 @@ export async function initializeAds(): Promise<void> {
       personalized = false;
     }
     setAdsConsentPersonalized(personalized);
+    console.log(`[QuickScan] Ads: consent personalized=${personalized}`);
 
     try {
       await MobileAds().initialize();
-    } catch {
-      // SDK init failure must never crash or block the app.
+      console.log('[QuickScan] Ads: SDK initialized.');
+    } catch (e) {
+      console.log(
+        `[QuickScan] Ads: SDK init failed — ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
     }
   } catch {
     // Any setup failure must never crash or block the app.

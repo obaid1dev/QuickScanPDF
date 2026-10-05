@@ -3,15 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useDocuments } from '@/hooks/useDocuments';
-import {
-  getScansDirectory,
-  getTotalScansSizeBytes,
-} from '@/lib/fileManager';
 import { ADS_ENABLED, APP_VERSION } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 export default function SettingsScreen() {
-  const { documents, remove, refresh, totalStorageLabel } = useDocuments();
+  const { documents, clearAll, totalStorageBytes, totalStorageLabel } = useDocuments();
   const [clearing, setClearing] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
 
@@ -19,18 +15,13 @@ export default function SettingsScreen() {
     setConfirmVisible(false);
     setClearing(true);
     try {
-      const dir = getScansDirectory();
-      for (const entry of dir.list()) {
-        try {
-          entry.delete();
-        } catch {
-          // best-effort deletion per file
-        }
-      }
-      for (const doc of [...documents]) {
-        await remove(doc.id);
-      }
-      await refresh();
+      // One batch operation: all files removed, all metadata cleared in a
+      // single write. The Dashboard's list and the storage stat both update
+      // from this one state change, so the empty state appears instantly.
+      await clearAll();
+    } catch {
+      // Deletion is best-effort; clearAll already drops the metadata index so
+      // there is never a dangling entry for a file that failed to delete.
     } finally {
       setClearing(false);
     }
@@ -55,7 +46,7 @@ export default function SettingsScreen() {
             <Text style={styles.rowTitleDanger}>Clear all scans</Text>
             <Text style={styles.rowSub}>
               Deletes {documents.length} scan{documents.length === 1 ? '' : 's'} •{' '}
-              {getTotalScansSizeBytes() > 0 ? totalStorageLabel : '0 KB'}
+              {totalStorageBytes > 0 ? totalStorageLabel : '0 KB'}
             </Text>
           </View>
           <Pressable
@@ -76,8 +67,8 @@ export default function SettingsScreen() {
         title="Clear all scans?"
         message={
           documents.length > 0
-            ? `This permanently deletes all ${documents.length} scan${documents.length === 1 ? '' : 's'} (PDFs and thumbnails) from your device.`
-            : 'This permanently deletes every scan (PDFs and thumbnails) from your device.'
+            ? `This will permanently delete all ${documents.length} scan${documents.length === 1 ? '' : 's'} and their PDFs from this device. This cannot be undone.`
+            : 'This will permanently delete all scanned documents and PDFs from this device. This cannot be undone.'
         }
         confirmLabel="Delete All"
         danger

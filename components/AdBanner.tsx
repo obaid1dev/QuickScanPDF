@@ -53,6 +53,15 @@ export default function AdBanner() {
     };
   }, []);
 
+  // Diagnostics: filter with `adb logcat -s QuickScan:V`.
+  useEffect(() => {
+    if (!ADS_ENABLED) {
+      console.log('[QuickScan] Banner: disabled via ADS_ENABLED');
+    } else if (adsModule) {
+      console.log(`[QuickScan] Banner: AdMob module ready, requesting ${AD_UNIT_IDS.banner}`);
+    }
+  }, [adsModule]);
+
   useEffect(
     () => () => {
       if (timerRef.current) {
@@ -73,7 +82,13 @@ export default function AdBanner() {
     }, []),
   );
 
-  const handleFailed = useCallback(() => {
+  const handleFailed = useCallback((error: Error) => {
+    // The SDK's actual reason matters: `no-fill` / "no ad available" is normal
+    // right after an account or app review window (and is not a code bug),
+    // whereas "invalid request"/config errors are a real regression.
+    console.log(
+      `[QuickScan] Banner failed (attempt ${failCountRef.current + 1}): ${error?.message ?? error}`,
+    );
     const attempt = failCountRef.current + 1;
     failCountRef.current = attempt;
     if (attempt > RETRY_BACKOFF_MS.length) {
@@ -111,10 +126,13 @@ export default function AdBanner() {
         requestOptions={{
           requestNonPersonalizedAdsOnly: !getAdsConsentPersonalized(),
         }}
-        onAdLoaded={() => {
+        onAdLoaded={(dimensions) => {
           // A successful load clears the failure streak so future hiccups get
           // the full retry budget again.
           failCountRef.current = 0;
+          console.log(
+            `[QuickScan] Banner loaded: ${dimensions?.width}x${dimensions?.height}`,
+          );
         }}
         onAdFailedToLoad={handleFailed}
       />

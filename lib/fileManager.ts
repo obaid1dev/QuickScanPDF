@@ -309,6 +309,35 @@ export function deleteDocumentFiles(document: Document): void {
   }
 }
 
+/**
+ * Deletes EVERY scan file (PDFs, thumbnails, page images) in one recursive
+ * delete of the Scans folder, instead of removing files one document at a time.
+ *
+ * `Directory.delete()` is recursive per the SDK, so the whole folder goes in a
+ * single call. The cached directory handle is dropped afterwards so the next
+ * `ensureScansDirectory()` recreates it. If the new API is unavailable/blocked
+ * (e.g. Expo Go permission quirks), it falls back to deleting the folder's
+ * entries through the permission-free legacy API. Failures are swallowed on
+ * purpose: the caller clears the metadata index regardless, so a single
+ * undeletable file can never leave a dangling, broken entry behind.
+ */
+export function deleteAllScansFiles(): void {
+  scansDirectory = null;
+  const scansUri = `${documentRootUri()}${SCANS_FOLDER}`;
+  try {
+    const dir = new Directory(scansUri);
+    if (dir.exists) {
+      dir.delete();
+    }
+    return;
+  } catch {
+    // fall through to the legacy API
+  }
+  void LegacyFileSystem.deleteAsync(scansUri, { idempotent: true }).catch(
+    () => undefined,
+  );
+}
+
 export function getFileNameFromUri(uri: string): string {
   try {
     const file = new File(uri);
