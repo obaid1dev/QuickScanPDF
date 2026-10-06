@@ -2,7 +2,7 @@
   "expo": {
     "name": "QuickScan PDF",
     "slug": "quickscan-pdf",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -25,7 +25,7 @@
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "versionCode": 2,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#2C5EBD",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -35,9 +35,14 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
         "com.google.android.gms.permission.AD_ID"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
       "package": "com.obaid.dev.quickscanpdf"
     },
@@ -51,7 +56,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "QuickScan PDF needs photo library access so you can import existing photos into your PDF."
+          "photosPermission": "QuickScan PDF needs photo library access so you can import existing photos into your PDF.",
+          "microphonePermission": false
         }
       ],
       [

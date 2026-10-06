@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -104,18 +103,11 @@ export default function CameraScreen() {
   };
 
   const openGallery = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        'Photo access needed',
-        'Allow photo access to import images from your gallery.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ],
-      );
-      return;
-    }
+    // No runtime permission request here on purpose: the Android system Photo
+    // Picker (Android 13+ Photo Picker, backported by expo-image-picker) runs
+    // out-of-process and returns only what the user selects, so it needs no
+    // broad media permission. Declaring/requesting READ_MEDIA_IMAGES is a Play
+    // policy violation ("Photo and Video Permissions") for this use case.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,

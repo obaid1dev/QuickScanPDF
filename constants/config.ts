@@ -26,4 +26,4 @@ export const STORAGE_KEYS = {
 
 export const SCANS_FOLDER = 'scans';
 
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.2';
