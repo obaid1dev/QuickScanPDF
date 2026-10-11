@@ -14,41 +14,12 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import {
-  Canvas,
-  Image as SkiaImage,
-  useImage,
-} from '@shopify/react-native-skia';
-import * as SkiaNamespace from '@shopify/react-native-skia';
 import PageThumbnailStrip from '@/components/PageThumbnailStrip';
-import FilterThumbnail from '@/components/FilterThumbnail';
 import CropModal from '@/components/CropModal';
 import type { CropRect } from '@/components/CropModal';
 import { useScanSession } from '@/hooks/useScanSession';
-import {
-  applyRotation,
-  cropImage,
-  filterColorMatrix,
-  getFilterVariant,
-  precomputeVariants,
-} from '@/lib/imageProcessing';
+import { applyRotation, cropImage } from '@/lib/imageProcessing';
 import { colors, spacing, typography } from '@/constants/theme';
-import type { FilterType } from '@/types/document';
-
-// The package ships intact runtime exports but a subset of its type
-// declarations are minified; recover the missing pieces at runtime.
-const SkiaRuntime = SkiaNamespace as unknown as {
-  Group: React.ComponentType<{ children?: React.ReactNode }>;
-  ColorMatrix: React.ComponentType<{ matrix: number[]; children?: React.ReactNode }>;
-};
-
-const { Group, ColorMatrix } = SkiaRuntime;
-
-const filterOptions: { value: FilterType; label: string }[] = [
-  { value: 'original', label: 'Original' },
-  { value: 'bw', label: 'B&W' },
-  { value: 'magic_color', label: 'Magic' },
-];
 
 export default function EditorScreen() {
   const router = useRouter();
@@ -59,20 +30,13 @@ export default function EditorScreen() {
     isActive,
     setCurrentPage,
     updatePage,
-    getPage,
     removePage,
     clearSession,
   } = useScanSession();
 
-  const [baseUri, setBaseUri] = useState<string | null>(null);
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [cropVisible, setCropVisible] = useState(false);
   const seqRef = useRef(0);
-  const activeRef = useRef(activePage);
-
-  useEffect(() => {
-    activeRef.current = activePage;
-  }, [activePage]);
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -103,106 +67,6 @@ export default function EditorScreen() {
     }
   }, [isActive, isFocused, clearSession, router]);
 
-  // (Re)build the rotation-only base image whenever the active page rotates.
-  useEffect(() => {
-    if (!activePage) {
-      return;
-    }
-    const id = activePage.id;
-    let cancelled = false;
-    resetZoom();
-    setBaseUri(null);
-    applyRotation(activePage.originalUri, activePage.rotation)
-      .then((uri) => {
-        if (!cancelled && id === activePage.id) {
-          setBaseUri(uri);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePage?.id, activePage?.rotation]);
-
-  // The declarative Skia preview is driven by the *un-filtered* base image so
-  // filter changes apply instantly without re-encoding a file.
-  const previewImage = useImage(baseUri ?? activePage?.originalUri ?? '');
-
-  const finalize = useCallback(
-    async (id: string, sourceUri: string, filter: FilterType, seq: number) => {
-      try {
-        const processed =
-          filter === 'original'
-            ? sourceUri
-            : await getFilterVariant(sourceUri, filter);
-        if (seq === seqRef.current) {
-          updatePage(id, { processedUri: processed });
-        }
-      } catch {
-        if (seq === seqRef.current) {
-          updatePage(id, { processedUri: sourceUri });
-        }
-      }
-    },
-    [updatePage],
-  );
-
-  // Stores a finished B&W/Magic variant on the given page, keyed by the base
-  // URI it was rendered from. Additive merges make racing pre-computes (e.g.
-  // rotate while a prior rotate is still finishing) harmless.
-  const storeVariant = useCallback(
-    (
-      id: string,
-      baseUri: string,
-      filter: 'bw' | 'magic_color',
-      uri: string,
-    ) => {
-      updatePage(id, (prev) => ({
-        variants: {
-          ...(prev.variants ?? {}),
-          [baseUri]: { ...(prev.variants?.[baseUri] ?? {}), [filter]: uri },
-        },
-      }));
-    },
-    [updatePage],
-  );
-
-  const applyFilter = useCallback(
-    async (filter: FilterType) => {
-      if (!activePage || filter === activePage.filter) {
-        return;
-      }
-      void Haptics.selectionAsync();
-      const seq = ++seqRef.current;
-      const { id, originalUri, rotation } = activePage;
-      // The selection + preview update synchronously (the canvas applies the
-      // color matrix declaratively); the disk copy is swapped or rebuilt after.
-      updatePage(id, { filter });
-      try {
-        const base = await applyRotation(originalUri, rotation);
-        if (seq !== seqRef.current) {
-          return;
-        }
-        if (filter !== 'original') {
-          // Instant path: a variant was pre-computed for this exact base.
-          const variantUri = getPage(id)?.variants?.[base]?.[filter];
-          if (variantUri) {
-            updatePage(id, { processedUri: variantUri });
-            return;
-          }
-        }
-        // Fallback: encode the disk copy on demand (thumbnails + PDF assembly).
-        await finalize(id, base, filter, seq);
-      } catch {
-        if (seq === seqRef.current) {
-          await finalize(id, originalUri, filter, seq).catch(() => undefined);
-        }
-      }
-    },
-    [activePage, updatePage, getPage, finalize],
-  );
-
   const rotate = async () => {
     if (!activePage) {
       return;
@@ -216,15 +80,8 @@ export default function EditorScreen() {
       if (seq !== seqRef.current) {
         return;
       }
-      setBaseUri(rotated);
       updatePage(id, { rotation: nextRotation, processedUri: rotated });
       resetZoom();
-      await finalize(id, rotated, activeRef.current?.filter ?? activePage.filter, seq);
-      // Warm the filter variants for the new rotation-only base in the
-      // background so the next filter tap is instant.
-      precomputeVariants(rotated, (filter, variantUri) =>
-        storeVariant(id, rotated, filter, variantUri),
-      );
     } catch {
       if (seq === seqRef.current) {
         Alert.alert('Rotate failed', 'Could not rotate this page.');
@@ -238,26 +95,19 @@ export default function EditorScreen() {
       return;
     }
     const seq = ++seqRef.current;
-    const { id, filter } = activePage;
-    const source = baseUri ?? activePage.originalUri;
+    const { id } = activePage;
+    const source = activePage.processedUri ?? activePage.originalUri;
     try {
       const cropped = await cropImage(source, rect);
       if (seq !== seqRef.current) {
         return;
       }
-      setBaseUri(cropped);
       updatePage(id, {
         originalUri: cropped,
         rotation: 0,
         processedUri: cropped,
       });
       resetZoom();
-      await finalize(id, cropped, activeRef.current?.filter ?? filter, seq);
-      // Warm the filter variants for the cropped base so the next filter tap
-      // switches instantly.
-      precomputeVariants(cropped, (variantFilter, variantUri) =>
-        storeVariant(id, cropped, variantFilter, variantUri),
-      );
     } catch {
       if (seq === seqRef.current) {
         Alert.alert('Crop failed', 'Could not crop this page.');
@@ -332,10 +182,10 @@ export default function EditorScreen() {
     };
   });
 
-  const filter =
-    activePage && activePage.filter !== 'original' ? activePage.filter : null;
-  const filterMatrix = filter ? filterColorMatrix(filter) : null;
-  const previewUri = activePage?.processedUri ?? null;
+  // The current page's rendered image (rotation/crop already baked in). Falls
+  // back to the raw original until the first render lands.
+  const previewUri = activePage?.processedUri ?? activePage?.originalUri ?? null;
+  const cropSource = activePage?.processedUri ?? activePage?.originalUri ?? '';
 
   return (
     <View style={styles.root}>
@@ -357,9 +207,6 @@ export default function EditorScreen() {
                   backgroundColor: colors.background,
                 }}
               >
-                {/* Base layer: the last finalized render. Stays mounted while
-                    the Skia image for `baseUri` decodes, so the preview never
-                    blanks to black. */}
                 {previewUri ? (
                   <Image
                     source={{ uri: previewUri }}
@@ -370,36 +217,6 @@ export default function EditorScreen() {
                 ) : (
                   <ActivityIndicator color={colors.primary} />
                 )}
-
-                {/* Filter/rotate layer: a single, opaque Skia canvas on top.
-                    No keys or fade animations — swapping the ColorMatrix or the
-                    source image updates in place, so switching filters is
-                    instant with no black flash. */}
-                {previewImage ? (
-                  <View style={StyleSheet.absoluteFill}>
-                    <Canvas
-                      style={{
-                        width: box.width,
-                        height: box.height,
-                        backgroundColor: colors.background,
-                      }}
-                    >
-                      <Group>
-                        {filterMatrix ? (
-                          <ColorMatrix matrix={filterMatrix} />
-                        ) : null}
-                        <SkiaImage
-                          image={previewImage}
-                          x={0}
-                          y={0}
-                          width={box.width}
-                          height={box.height}
-                          fit="contain"
-                        />
-                      </Group>
-                    </Canvas>
-                  </View>
-                ) : null}
               </View>
             ) : (
               <ActivityIndicator color={colors.primary} />
@@ -433,19 +250,6 @@ export default function EditorScreen() {
             <Ionicons name="crop-outline" size={22} color={colors.textPrimary} />
             <Text style={styles.toolLabel}>Crop</Text>
           </Pressable>
-
-          <View style={styles.filterRow}>
-            {filterOptions.map((opt) => (
-              <FilterThumbnail
-                key={opt.value}
-                sourceUri={baseUri ?? (activePage?.originalUri ?? '')}
-                filter={opt.value}
-                label={opt.label}
-                selected={activePage?.filter === opt.value}
-                onSelect={applyFilter}
-              />
-            ))}
-          </View>
         </View>
 
         <View style={styles.ctaRow}>
@@ -474,7 +278,7 @@ export default function EditorScreen() {
 
       <CropModal
         visible={cropVisible}
-        sourceUri={baseUri ?? activePage?.originalUri ?? ''}
+        sourceUri={cropSource}
         onCancel={() => setCropVisible(false)}
         onApply={applyCrop}
       />
@@ -512,6 +316,7 @@ const styles = StyleSheet.create({
   toolRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-evenly',
     gap: spacing.md,
     marginBottom: spacing.lg,
   },
@@ -526,12 +331,6 @@ const styles = StyleSheet.create({
   toolLabel: {
     ...typography.badge,
     color: colors.textSecondary,
-  },
-  filterRow: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
   },
   ctaRow: {
     flexDirection: 'row',

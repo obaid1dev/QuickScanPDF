@@ -61,7 +61,6 @@ export function ScanSessionProvider({ children }: { children: React.ReactNode })
       id,
       originalUri,
       processedUri: originalUri,
-      filter: 'original',
       rotation: 0,
     };
     pagesRef.current = [...pagesRef.current, page];

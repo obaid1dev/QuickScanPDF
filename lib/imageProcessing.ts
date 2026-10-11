@@ -3,7 +3,6 @@ import { File, Paths } from 'expo-file-system';
 import { Image } from 'react-native';
 import { Skia } from '@shopify/react-native-skia';
 import type { SkColor } from '@shopify/react-native-skia';
-import type { FilterType } from '@/types/document';
 
 // Skia's ImageFormat enum is minified in the shipped package (exported as `n`).
 // JPEG = 3 is a stable constant from Skia's C API.
@@ -12,94 +11,6 @@ const JPEG_FORMAT = 3;
 // A4 portrait ratio (height / width) used to letterbox PDF page images.
 const A4PAGE_RATIO = 841.89 / 595.28;
 
-export type ColorMatrixLike = number[];
-
-const IDENTITY: ColorMatrixLike = [
-  1, 0, 0, 0, 0,
-  0, 1, 0, 0, 0,
-  0, 0, 1, 0, 0,
-  0, 0, 0, 1, 0,
-];
-
-function grayscaleMatrix(): ColorMatrixLike {
-  return [
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0, 0, 0, 1, 0,
-  ];
-}
-
-function contrastMatrix(level: number): ColorMatrixLike {
-  const bias = 128 * (1 - level);
-  return [
-    level, 0, 0, 0, bias,
-    0, level, 0, 0, bias,
-    0, 0, level, 0, bias,
-    0, 0, 0, 1, 0,
-  ];
-}
-
-function saturationMatrix(s: number): ColorMatrixLike {
-  const sr = (1 - s) * 0.2126;
-  const sg = (1 - s) * 0.7152;
-  const sb = (1 - s) * 0.0722;
-  return [
-    sr + s, sg, sb, 0, 0,
-    sr, sg + s, sb, 0, 0,
-    sr, sg, sb + s, 0, 0,
-    0, 0, 0, 1, 0,
-  ];
-}
-
-function brightnessMatrix(b: number): ColorMatrixLike {
-  return [
-    1, 0, 0, 0, b,
-    0, 1, 0, 0, b,
-    0, 0, 1, 0, b,
-    0, 0, 0, 1, 0,
-  ];
-}
-
-/**
- * Compose two 4x5 color matrices: result = a ∘ b (b applied to pixels first,
- * then a). Used to collapse multi-step filters into a single matrix.
- */
-export function composeColorMatrices(
-  a: ColorMatrixLike,
-  b: ColorMatrixLike,
-): ColorMatrixLike {
-  const out: number[] = new Array(20).fill(0);
-  for (let i = 0; i < 4; i += 1) {
-    for (let j = 0; j < 4; j += 1) {
-      let sum = 0;
-      for (let k = 0; k < 4; k += 1) {
-        sum += a[i * 5 + k] * b[k * 5 + j];
-      }
-      out[i * 5 + j] = sum;
-    }
-    let bias = 0;
-    for (let k = 0; k < 4; k += 1) {
-      bias += a[i * 5 + k] * b[k * 5 + 4];
-    }
-    out[i * 5 + 4] = bias + a[i * 5 + 4];
-  }
-  return out;
-}
-
-export const FILTER_MATRICES: Record<FilterType, ColorMatrixLike> = {
-  original: IDENTITY,
-  bw: composeColorMatrices(contrastMatrix(1.35), grayscaleMatrix()),
-  magic_color: composeColorMatrices(
-    contrastMatrix(1.18),
-    composeColorMatrices(saturationMatrix(1.25), brightnessMatrix(15)),
-  ),
-};
-
-export function filterColorMatrix(filter: FilterType): ColorMatrixLike {
-  return FILTER_MATRICES[filter] ?? IDENTITY;
-}
-
 const rotationCache = new Map<string, Promise<string>>();
 
 /**
@@ -107,8 +18,8 @@ const rotationCache = new Map<string, Promise<string>>();
  * expo-image-manipulator's context API. Always starts from the original
  * source so repeated taps never compound distortion. Returns the new URI
  * (saved into the app cache directory). Results are cached per
- * (source, degrees) so revisiting a rotated page or re-tapping a filter never
- * re-encodes the same rotation twice.
+ * (source, degrees) so revisiting a rotated page never re-encodes the same
+ * rotation twice.
  */
 export async function applyRotation(
   sourceUri: string,
@@ -192,143 +103,6 @@ export async function cropImage(
     compress: 0.92,
   });
   return result.uri;
-}
-
-/**
- * Applies a color filter (B&W or Magic Color) using a Skia CPU surface with a
- * 4x5 color matrix. expo-image-manipulator has no native color ops, so we
- * rasterize through Skia and encode the result. Falls back to the source URI
- * if Skia is unavailable (e.g. web) so the pipeline never breaks.
- */
-export async function applyColorFilter(
-  sourceUri: string,
-  filter: FilterType,
-): Promise<string> {
-  if (filter === 'original') {
-    return sourceUri;
-  }
-
-  try {
-    const srcFile = new File(sourceUri);
-    const bytes = await srcFile.bytes();
-    const data = Skia.Data.fromBytes(bytes);
-    const image = Skia.Image.MakeImageFromEncoded(data);
-    if (!image) {
-      throw new Error('Skia could not decode the image.');
-    }
-
-    const width = image.width();
-    const height = image.height();
-
-    const paint = Skia.Paint();
-    paint.setColorFilter(
-      Skia.ColorFilter.MakeMatrix(filterColorMatrix(filter)),
-    );
-
-    const surface =
-      Skia.Surface.Make(width, height) ??
-      Skia.Surface.MakeOffscreen(width, height);
-    if (!surface) {
-      throw new Error('Skia could not allocate a surface.');
-    }
-    const canvas = surface.getCanvas();
-    canvas.clear(0x00000000 as unknown as SkColor);
-    canvas.drawImage(image, 0, 0, paint);
-
-    const snapshot = surface.makeImageSnapshot();
-    const outBytes = snapshot.encodeToBytes(
-      JPEG_FORMAT as unknown as Parameters<typeof snapshot.encodeToBytes>[0],
-      90,
-    );
-
-    const outFile = new File(
-      Paths.cache,
-      `filtered_${Date.now()}_${Math.floor(Math.random() * 1e6)}.jpg`,
-    );
-    outFile.write(outBytes);
-
-    paint.dispose?.();
-    return outFile.uri;
-  } catch {
-    // Filtering is best-effort; return the unmodified image instead of failing.
-    return sourceUri;
-  }
-}
-
-/**
- * Memoized decoder for a page's color-filter disk copies. The first call for a
- * given (filter, base) renders the JPEG; later calls for the same pair return
- * the cached promise, so re-triggering a pre-compute is free.
- *
- * Renders are serialized through a tiny concurrency pool: a multi-page scan
- * pre-computes two variants per page, and letting them all render at once
- * would decode full-resolution images and allocate one Skia surface each —
- * enough to spike memory/CPU and stall the UI thread. Capping it bounds the
- * peak to two surfaces at a time.
- */
-const filterVariantCache = new Map<string, Promise<string>>();
-
-const MAX_FILTER_CONCURRENCY = 2;
-let activeFilterJobs = 0;
-const filterJobQueue: Array<() => Promise<unknown>> = [];
-
-function runWithConcurrency<T>(job: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const run = async () => {
-      activeFilterJobs += 1;
-      try {
-        resolve(await job());
-      } catch (e) {
-        reject(e);
-      } finally {
-        activeFilterJobs -= 1;
-        const next = filterJobQueue.shift();
-        if (next) {
-          void next();
-        }
-      }
-    };
-    if (activeFilterJobs < MAX_FILTER_CONCURRENCY) {
-      void run();
-    } else {
-      filterJobQueue.push(run);
-    }
-  });
-}
-
-export function getFilterVariant(
-  sourceUri: string,
-  filter: Exclude<FilterType, 'original'>,
-): Promise<string> {
-  const key = `${filter}|${sourceUri}`;
-  const cached = filterVariantCache.get(key);
-  if (cached) {
-    return cached;
-  }
-  if (filterVariantCache.size > 512) {
-    filterVariantCache.clear();
-  }
-  const promise = runWithConcurrency(() => applyColorFilter(sourceUri, filter));
-  filterVariantCache.set(key, promise);
-  return promise;
-}
-
-/**
- * Kicks off background rendering of a page's B&W and Magic Color variants for
- * the given rotation-only base URI. `onVariant` is called once per finished
- * filter so the caller can store each result as soon as it lands (partial
- * progress beats waiting for both).
- */
-export function precomputeVariants(
-  sourceUri: string,
-  onVariant: (filter: 'bw' | 'magic_color', uri: string) => void,
-): void {
-  getFilterVariant(sourceUri, 'bw')
-    .then((uri) => onVariant('bw', uri))
-    .catch(() => undefined);
-  getFilterVariant(sourceUri, 'magic_color')
-    .then((uri) => onVariant('magic_color', uri))
-    .catch(() => undefined);
 }
 
 /**
@@ -490,22 +264,4 @@ export function makeThumbnail(sourceUri: string): Promise<string> {
   const promise = resizeImageToMax(sourceUri, 300, 0.8);
   thumbnailCache.set(sourceUri, promise);
   return promise;
-}
-
-/**
- * Pipeline used by the editor when edits change: rotate (absolute) then apply
- * the selected filter. Returns a cache URI ready for preview + PDF assembly.
- */
-export async function processPage({
-  originalUri,
-  rotation,
-  filter,
-}: {
-  originalUri: string;
-  rotation: 0 | 90 | 180 | 270;
-  filter: FilterType;
-}): Promise<string> {
-  const rotated = await applyRotation(originalUri, rotation);
-  const filtered = await applyColorFilter(rotated, filter);
-  return filtered;
 }

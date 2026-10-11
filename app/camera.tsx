@@ -13,12 +13,12 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useScanSession } from '@/hooks/useScanSession';
-import { normalizeToJpeg, precomputeVariants } from '@/lib/imageProcessing';
+import { normalizeToJpeg } from '@/lib/imageProcessing';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 export default function CameraScreen() {
   const router = useRouter();
-  const { pages, isActive, addPage, updatePage, clearSession } = useScanSession();
+  const { pages, isActive, addPage, clearSession } = useScanSession();
   const [scanning, setScanning] = useState(false);
 
   const goBackWithConfirm = useCallback(() => {
@@ -46,18 +46,7 @@ export default function CameraScreen() {
   const finishCapture = useCallback(
     (uris: string[], hadPagesBefore: boolean) => {
       for (const uri of uris) {
-        // Pre-render the B&W/Magic variants in the background so the editor's
-        // filter switches are instant. The base at capture time is the original
-        // at rotation 0, so variants are keyed by the raw URI.
-        const id = addPage(uri);
-        precomputeVariants(uri, (filter, variantUri) =>
-          updatePage(id, (prev) => ({
-            variants: {
-              ...(prev.variants ?? {}),
-              [uri]: { ...(prev.variants?.[uri] ?? {}), [filter]: variantUri },
-            },
-          })),
-        );
+        addPage(uri);
       }
       if (hadPagesBefore) {
         router.back();
@@ -65,7 +54,7 @@ export default function CameraScreen() {
         router.push('/editor');
       }
     },
-    [addPage, updatePage, router],
+    [addPage, router],
   );
 
   const scan = async () => {
