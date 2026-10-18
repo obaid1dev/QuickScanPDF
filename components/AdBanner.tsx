@@ -124,15 +124,14 @@ export default function AdBanner({
     return null;
   }
 
-  const { BannerAd } = adsModule;
+  const { BannerAd, BannerAdSize } = adsModule;
 
   // RNGMA's BannerAd does not forward standard View props; an adaptive banner
   // explicitly sized to the device width measures the slot correctly (the
   // library otherwise defaults to full device width anyway).
   const bannerWidth = Math.floor(Dimensions.get('window').width);
   const resolvedUnitId = unitId ?? AD_UNIT_IDS.banner;
-  const resolvedSize =
-    size ?? adsModule.BannerAdSize.LARGE_ANCHORED_ADAPTIVE_BANNER;
+  const resolvedSize = size ?? BannerAdSize.LARGE_ANCHORED_ADAPTIVE_BANNER;
 
   return (
     <View key={nonce} style={styles.container}>

@@ -1,42 +1,61 @@
-# Final Fix Prompt for OpenCode — Hide the Status Bar App-Wide
+# Prompt for OpenCode — Add OCR + ID Card Mode + More Ad Placements
+
+The two new ad unit IDs (viewer banner and rewarded) are already filled in below, so it is ready to paste.
 
 Paste everything below the `---` into OpenCode.
 
 ---
 
-## TASK
+## SCOPE
 
-The Android navigation bar (bottom) is already successfully hidden/immersive. Now also hide the status bar (top — clock, WiFi, battery, notification icons) on **every screen** in the app, so the whole app runs fully edge-to-edge/immersive on both the top and bottom, not just the bottom.
+Add two user-facing features and two ad placements to QuickScan PDF. Do NOT touch existing working systems: native scanner capture, PDF generation layout, the Dashboard banner, the post-export/back-to-home interstitial, consent flow, immersive status/nav bar, icon, or the `blockedPermissions` setup. Keep the app fully offline for its core features. Bump the version and push to GitHub. **Do NOT run `eas build` or `eas submit`.**
 
-## IMPLEMENTATION
+## FEATURE 1: Copy text from a scan (on-device OCR)
 
-### 1. Update the status bar config in the root layout
-In `app/_layout.tsx`, change the existing `<StatusBar>` component (from `expo-status-bar`) from its current translucent/light setup to fully hidden:
-```tsx
-<StatusBar hidden={true} />
-```
-This should apply globally across all screens since it's set once in the root layout — remove any per-screen status bar overrides if they exist elsewhere (e.g., if the Camera screen or any other screen sets its own `<StatusBar>` config, delete that and let the root layout's `hidden={true}` apply everywhere consistently).
+- Add an "Extract text" action to the Editor screen (per current page) and to the PDF/document viewer if it has page images available.
+- Use an **on-device** text recognition library that works offline with no API keys and no cloud calls, such as Google ML Kit text recognition through a maintained React Native wrapper (e.g. `@react-native-ml-kit/text-recognition`). Check compatibility with the installed Expo SDK (57) and the New Architecture setting before choosing; if that package is incompatible, pick the best maintained on-device alternative and tell me why.
+- Result screen/sheet: show the recognized text in a scrollable, selectable text area, with "Copy" and "Share as .txt" buttons. If no text is found, show a friendly "No text detected, try a clearer, well-lit scan" message.
+- Make sure no media/storage permissions are added by this library. If any are merged into the manifest, add them to `blockedPermissions` and verify with a local `expo prebuild` (then delete the generated `android/` folder and revert any package.json script edits it makes, as was done before).
+- Run recognition off the main interaction path with a loading indicator, and handle errors without crashing.
 
-### 2. Android: combine with the existing immersive nav bar behavior
-Since the nav bar is already using `NavigationBar.setBehaviorAsync('overlay-swipe')` (swipe-to-reveal, then auto-hide again) from the earlier immersive setup, make the status bar behave the same way for consistency — a fully hidden status bar with no way to reveal it can feel broken/glitchy to some users (e.g., they can't check the time or see if a call is coming in). Implement this using Android's system UI visibility flags so BOTH bars hide together and BOTH can be swiped-to-reveal temporarily from either edge, then auto-hide again — rather than one being swipe-revealable and the other being permanently invisible with no way to check it.
-- If `expo-status-bar`'s simple `hidden` prop doesn't support this swipe-reveal behavior on its own (it's a simpler API than the full native immersive mode), use `expo-navigation-bar`'s existing immersive setup as the single source of truth for BOTH bars together: set the same `'overlay-swipe'` behavior config to affect both system bars simultaneously (Android's edge-to-edge/immersive APIs are typically controlled together at the OS level, not independently per-bar) — check `expo-navigation-bar`'s and `expo-status-bar`'s current documentation/API for the correct combined approach given the installed Expo SDK version, since this exact API can differ between SDK versions.
-- If truly independent control isn't cleanly available, prioritize matching the existing nav bar's swipe-reveal-then-rehide behavior over a permanently-invisible status bar, so the user experience is consistent between the two bars.
+## FEATURE 2: ID card mode
 
-### 3. iOS: hide the status bar consistently too
-- Confirm `<StatusBar hidden={true} />` from `expo-status-bar` also correctly hides it on iOS (this is a simpler, more universally supported API on iOS than Android's immersive mode nuances above).
-- If any screen uses a native modal, camera view, or full-screen presentation that manages its own status bar visibility independently (this can happen with certain camera/video components), make sure that per-screen behavior doesn't override the global hidden setting — audit the Camera screen specifically since it's the most likely place a native component might reassert its own status bar behavior.
+- On the camera/scanner entry point (Dashboard FAB flow or the first screen of scanning), add a mode choice: **Document** (default, current behavior) and **ID Card**.
+- ID Card mode: guide the user to scan the **front**, then the **back** (two prompts like "Scan the front", "Now scan the back"), using the same native scanner for each.
+- When exporting in ID Card mode, generate **one A4 page** with both images stacked vertically, centered, each at a realistic ID size ratio with comfortable margins, white background, aspect ratio preserved (never stretched). Reuse the existing `expo-print` HTML approach with a dedicated template using fixed `pt` dimensions (595pt x 842pt) like the current layout fix.
+- Name the file sensibly (e.g. `ID_Card_YYYY_MM_DD_HHmm.pdf`) and let the existing save/share/history flow handle it. The Dashboard card should show normally.
+- Document mode must remain completely unchanged.
 
-### 4. Safe area handling — important, don't skip
-Since the status bar is now hidden everywhere, re-check every screen that previously relied on `useSafeAreaInsets()` top inset to avoid overlapping the status bar area. With the status bar hidden, content can often extend further up than before — decide intentionally, per screen, whether content should now use that reclaimed space (e.g., Dashboard header can sit slightly higher) or whether you still want a consistent top padding for visual balance even without a visible status bar. Don't leave awkward empty gaps at the top of screens that were previously sized around a visible status bar that no longer exists.
+## ADS: two new placements (policy-safe)
 
-## TESTING CHECKLIST
+New ad unit IDs (use Google test IDs while `__DEV__` is true, real IDs in production, same pattern as the existing `AD_UNIT_IDS`):
+- Viewer banner, production: `ca-app-pub-1138568424665362/6530342141` (Android test: `ca-app-pub-3940256099942544/6300978111`)
+- Rewarded, production: `ca-app-pub-1138568424665362/2545583845` (Android test: `ca-app-pub-3940256099942544/5224354917`)
 
-1. Status bar (clock/WiFi/battery/notifications) is not visible on any screen: Dashboard, Camera, Editor, Share, Settings, and the PDF viewer.
-2. Confirm you can still briefly reveal both the status bar and nav bar together via an edge swipe if that's the implemented behavior, and they auto-hide again shortly after — the app shouldn't feel like the user has zero way to ever check the time/battery.
-3. No screen has an awkward empty gap or, conversely, content jammed too close to the very top edge of the physical screen (accounting for camera notches/punch-holes) now that the status bar space is reclaimed.
-4. Test on both Android and iOS if shipping both — confirm the behavior is clean on each, since the underlying APIs differ.
-5. Confirm the Camera screen specifically still displays correctly full-screen with no native component re-asserting a visible status bar.
+1. **Viewer banner:** show a banner (anchored adaptive) at the bottom of the existing-PDF viewer screen, using the viewer banner unit. It must never overlap buttons or the document content, and must render nothing if it fails to load. Respect `ADS_ENABLED` and the consent state.
+2. **Rewarded ad on OCR:**
+   - Add `OCR_FREE_PER_DAY = 2` to `constants/config.ts`. Track daily OCR uses in local storage (reset by calendar day).
+   - The first N uses per day are free. After that, show a clear dialog: "Watch a short ad to extract more text today" with **Watch ad** and **Cancel** buttons. Only if the user taps Watch ad, show the rewarded ad. Grant one OCR use only when the reward is earned (`EARNED_REWARD`).
+   - If the rewarded ad is not loaded or fails, do NOT block the user: let that OCR run proceed for free and log it in `__DEV__`. Never trap the user behind an ad that can't show.
+   - Preload the rewarded ad early (e.g. when the Editor opens) and reload after each show.
+3. Do NOT add any more interstitials, app-open ads, or banners elsewhere. No ads on the camera/scanner screens or while PDFs are generating. The rewarded ad must always be user-initiated and clearly labeled, never auto-shown.
+4. Everything must still no-op cleanly when `ADS_ENABLED = false`.
+
+## CLEANUP, VERSION, GIT
+
+- Run `npx tsc --noEmit` and fix errors. Update any in-app text/About that lists features (mention "Copy text from scans" and "ID card mode"; don't claim filters).
+- Read the current `expo.android.versionCode` and increment by 1; bump `expo.version` to the next minor version; keep `APP_VERSION` in `constants/config.ts` in sync.
+- Commit with a clear message and push to GitHub. **Stop there. No build, no submit.**
 
 ## DELIVERABLE
 
-Confirm which files were changed, whether the status bar is fully hidden with swipe-to-reveal (matching the nav bar) or permanently hidden with no reveal (state which one was achieved and why, if the swipe-reveal wasn't cleanly possible), and confirm no screen has broken safe-area spacing as a result of this change.
+Summarize: which OCR library was chosen and why, confirmation no new permissions slipped into the manifest, files changed or added, how the rewarded flow behaves when an ad fails, new versionCode and version, and confirmation the push succeeded.
+
+## TESTING CHECKLIST (report results)
+
+1. OCR returns readable text from a clear document scan and shows the "no text" message on a blank one.
+2. After 2 free OCRs, the dialog appears; Cancel does nothing; Watch ad grants one more use only after the reward is earned.
+3. With airplane mode on, OCR still works and is not blocked.
+4. ID card mode produces one A4 page with front and back, centered and undistorted.
+5. Document mode behaves exactly as before.
+6. Viewer banner shows and never covers content or buttons.
