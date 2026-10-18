@@ -16,12 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ProcessingLoader from '@/components/ProcessingLoader';
 import { useScanSession } from '@/hooks/useScanSession';
 import { useDocuments } from '@/hooks/useDocuments';
-import { generateIdCardPdf, generatePdfFromImages } from '@/lib/pdfGenerator';
+import { generatePdfFromImages } from '@/lib/pdfGenerator';
 import {
   getImagePixelSize,
   makeThumbnail,
   preparePageForPdf,
-  resizeImageToMax,
 } from '@/lib/imageProcessing';
 import {
   copyFileToScans,
@@ -32,7 +31,7 @@ import {
   savePdfToScans,
   generateUniqueFileName,
 } from '@/lib/fileManager';
-import { defaultScanTitle, idCardTitle } from '@/lib/format';
+import { defaultScanTitle } from '@/lib/format';
 import { useInterstitialAd, incrementExportCount } from '@/hooks/useInterstitialAd';
 import { useInterstitialOnBack } from '@/hooks/useInterstitialOnBack';
 import { colors, radii, spacing, typography } from '@/constants/theme';
@@ -47,12 +46,8 @@ interface ResultInfo {
 
 export default function ShareScreen() {
   const router = useRouter();
-  const { pages, isActive, clearSession, scanMode } = useScanSession();
+  const { pages, isActive, clearSession } = useScanSession();
   const { create } = useDocuments();
-
-  // ID Card mode exports ONE A4 page with both sides stacked; every other mode
-  // keeps the original one-image-per-page document layout.
-  const isIdCard = scanMode === 'id_card';
 
   const [stage, setStage] = useState<Stage>('generating');
   const [progress, setProgress] = useState('Generating your PDF…');
@@ -98,26 +93,15 @@ export default function ShareScreen() {
     startedRef.current = true;
 
     try {
-      // ID Card mode: downscale the card scans (aspect preserved, EXIF baked)
-      // and let the HTML fit them into card-shaped slots. Document mode keeps
-      // the full-bleed A4 letterbox so each page fills the sheet.
-      const pageUris = isIdCard
-        ? (
-            await Promise.all(
-              pages.map((p) => resizeImageToMax(p.processedUri, 1600, 0.85)),
-            )
-          ).slice(0, 2)
-        : await Promise.all(
-            pages.map((p) => preparePageForPdf(p.processedUri)),
-          );
+      const pageUris = await Promise.all(
+        pages.map((p) => preparePageForPdf(p.processedUri)),
+      );
       // Real pixel sizes so the PDF page images are centered with exact pixel
       // offsets (print engines on Android ignore CSS centering).
       const imageSizes = await Promise.all(
         pageUris.map((uri) => getImagePixelSize(uri)),
       );
-      const pdf = isIdCard
-        ? await generateIdCardPdf(pageUris, setProgress, imageSizes)
-        : await generatePdfFromImages(pageUris, setProgress, imageSizes);
+      const pdf = await generatePdfFromImages(pageUris, setProgress, imageSizes);
 
       if (__DEV__) {
         console.log(
@@ -125,12 +109,7 @@ export default function ShareScreen() {
         );
       }
 
-      // ID Card exports are named after the export (ID_Card_YYYY_MM_DD_HHmm.pdf)
-      // instead of the random suffix the document flow uses.
-      const docTitle = isIdCard ? idCardTitle() : defaultScanTitle();
-      const pdfName = isIdCard
-        ? `${docTitle}.pdf`
-        : generateUniqueFileName('Scan', 'pdf');
+      const pdfName = generateUniqueFileName('Scan', 'pdf');
       const docId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
       // Persist the PDF into the Scans folder. Sources are tried in order:
@@ -182,7 +161,7 @@ export default function ShareScreen() {
 
       const doc: Document = {
         id: docId,
-        title: docTitle,
+        title: defaultScanTitle(),
         pdfUri,
         thumbnailUri,
         pageCount: pdf.numberOfPages ?? pages.length,

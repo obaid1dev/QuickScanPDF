@@ -13,20 +13,14 @@ export type ScanPagePatch =
   | Partial<ScanPage>
   | ((prev: ScanPage) => Partial<ScanPage>);
 
-export type ScanMode = 'document' | 'id_card';
-
 export interface ScanSessionValue {
   pages: ScanPage[];
   currentPageId: string | null;
   activePage: ScanPage | null;
   isActive: boolean;
-  scanMode: ScanMode;
-  setScanMode: (mode: ScanMode) => void;
   addPage: (originalUri: string) => string;
   updatePage: (id: string, patch: ScanPagePatch) => void;
   getPage: (id: string) => ScanPage | null;
-  /** Synchronous snapshot of the current pages (mirrors `pagesRef`). */
-  getPages: () => ScanPage[];
   removePage: (id: string) => boolean;
   setCurrentPage: (id: string) => void;
   clearSession: () => void;
@@ -49,7 +43,6 @@ function createPageId(): string {
 export function ScanSessionProvider({ children }: { children: React.ReactNode }) {
   const [pages, setPages] = useState<ScanPage[]>([]);
   const [currentPageId, setCurrentPageIdState] = useState<string | null>(null);
-  const [scanMode, setScanModeState] = useState<ScanMode>('document');
 
   const pagesRef = useRef<ScanPage[]>([]);
   const currentRef = useRef<string | null>(null);
@@ -121,16 +114,11 @@ export function ScanSessionProvider({ children }: { children: React.ReactNode })
     setCurrentPageIdState(id);
   }, []);
 
-  const setScanMode = useCallback((mode: ScanMode) => {
-    setScanModeState(mode);
-  }, []);
-
   const clearSession = useCallback(() => {
     pagesRef.current = [];
     currentRef.current = null;
     setPages([]);
     setCurrentPageIdState(null);
-    setScanModeState('document');
   }, []);
 
   const value = useMemo<ScanSessionValue>(() => {
@@ -140,17 +128,14 @@ export function ScanSessionProvider({ children }: { children: React.ReactNode })
       currentPageId,
       activePage,
       isActive: pages.length > 0,
-      scanMode,
-      setScanMode,
       addPage,
       updatePage,
       getPage,
-      getPages,
       removePage,
       setCurrentPage,
       clearSession,
     };
-  }, [pages, currentPageId, scanMode, addPage, updatePage, getPage, getPages, removePage, setCurrentPage, setScanMode, clearSession]);
+  }, [pages, currentPageId, addPage, updatePage, getPage, removePage, setCurrentPage, clearSession]);
 
   return (
     <ScanSessionContext.Provider value={value}>

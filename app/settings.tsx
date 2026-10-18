@@ -97,8 +97,7 @@ export default function SettingsScreen() {
             <Text style={styles.rowTitle}>About</Text>
             <Text style={styles.rowSub}>
               QuickScan PDF v{APP_VERSION} is 100% offline. Copy text from scans
-              with on-device text recognition, and use ID card mode to fit both
-              sides of a card on one page. All scans and documents are stored
+              with on-device text recognition. All scans and documents are stored
               locally on your device — nothing is uploaded to the cloud.
             </Text>
           </View>
