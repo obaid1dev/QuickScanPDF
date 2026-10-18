@@ -9,6 +9,13 @@ export function defaultScanTitle(date: Date = new Date()): string {
   );
 }
 
+export function idCardTitle(date: Date = new Date()): string {
+  return (
+    `ID_Card_${date.getFullYear()}_${pad2(date.getMonth() + 1)}_` +
+    `${pad2(date.getDate())}_${pad2(date.getHours())}${pad2(date.getMinutes())}`
+  );
+}
+
 function startOfDay(ts: number): number {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);

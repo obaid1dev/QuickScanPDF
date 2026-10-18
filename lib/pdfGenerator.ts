@@ -143,6 +143,159 @@ export interface PdfResult {
   base64?: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// ID Card mode
+// ---------------------------------------------------------------------------
+
+// Slot for one side of the card, sized to a real ID-1 card ratio
+// (85.6 × 53.98 mm ≈ 1.586), expressed in print points.
+const ID_SLOT_WIDTH_PT = 400;
+const ID_SLOT_HEIGHT_PT = 252;
+// Vertical breathing room between the front and back slots.
+const ID_SLOT_GAP_PT = 40;
+
+/**
+ * Assembles a SINGLE A4 page holding the front (and optionally the back) of an
+ * ID card, stacked vertically, centered, on a white background.
+ *
+ * Centering deliberately avoids flexbox: Android's print pipeline is known to
+ * drop flex/table/absolute centering and dump images at the top-left (the same
+ * quirk that pushes `buildPdfHtml` to letterbox pages). `margin-left/right:
+ * auto` on a block-sized image plus a computed `padding-top` are plain
+ * block-layout rules every print engine honors, so both cards land dead-center.
+ *
+ * Each image's box is computed from its own pixel ratio so it fits inside the
+ * card slot while preserving aspect ratio — it is never stretched. When the
+ * size is unavailable, `object-fit: contain` inside the full slot does the
+ * same job.
+ */
+export function buildIdCardHtml(
+  imageDataUris: string[],
+  imageSizes?: Array<{ width: number; height: number } | null>,
+): string {
+  const sources = imageDataUris.slice(0, 2);
+
+  // Fit each image inside the card slot, preserving its aspect ratio.
+  const fitted = sources.map((src, i) => {
+    const size = imageSizes?.[i];
+    let width = ID_SLOT_WIDTH_PT;
+    let height = ID_SLOT_HEIGHT_PT;
+    if (size && size.width > 0 && size.height > 0) {
+      const ratio = size.height / size.width;
+      width = ID_SLOT_WIDTH_PT;
+      height = width * ratio;
+      if (height > ID_SLOT_HEIGHT_PT) {
+        height = ID_SLOT_HEIGHT_PT;
+        width = height / ratio;
+      }
+    }
+    return { src, width, height, hasSize: !!(size && size.width > 0 && size.height > 0) };
+  });
+
+  // Center the whole front/back group vertically on the A4 page.
+  const contentHeight = fitted.reduce(
+    (sum, f, i) => sum + f.height + (i > 0 ? ID_SLOT_GAP_PT : 0),
+    0,
+  );
+  const padTop = Math.round(
+    Math.max(ID_SLOT_HEIGHT_PT / 2, (A4_PAGE_HEIGHT - contentHeight) / 2),
+  );
+
+  const cards = fitted
+    .map((f) => {
+      const inline = f.hasSize
+        ? `width: ${f.width.toFixed(2)}pt; height: ${f.height.toFixed(2)}pt;`
+        : `width: ${ID_SLOT_WIDTH_PT}pt; height: ${ID_SLOT_HEIGHT_PT}pt; object-fit: contain;`;
+      return `<img class="idcard" src="${f.src}" alt="ID card side" style="${inline}" />`;
+    })
+    .join('\n');
+
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: ${A4_PAGE_WIDTH}pt ${A4_PAGE_HEIGHT}pt; margin: 0; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: ${A4_PAGE_WIDTH}pt;
+        height: ${A4_PAGE_HEIGHT}pt;
+        background-color: #ffffff;
+      }
+      .page {
+        box-sizing: border-box;
+        width: ${A4_PAGE_WIDTH}pt;
+        height: ${A4_PAGE_HEIGHT}pt;
+        padding-top: ${padTop}pt;
+        overflow: hidden;
+      }
+      .idcard {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        object-fit: contain;
+      }
+      .idcard + .idcard { margin-top: ${ID_SLOT_GAP_PT}pt; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+${cards}
+    </div>
+  </body>
+</html>`;
+}
+
+/**
+ * Renders the single-page ID Card PDF. Every input image becomes one slot on
+ * the same A4 page (front, then back), so the export is always exactly one
+ * page regardless of how many sides were supplied.
+ */
+export async function generateIdCardPdf(
+  imageUris: string[],
+  onProgress?: (stage: string) => void,
+  imageSizes?: Array<{ width: number; height: number } | null>,
+): Promise<PdfResult> {
+  if (imageUris.length === 0) {
+    throw new Error('Cannot generate an ID card PDF with zero images.');
+  }
+
+  onProgress?.('Preparing ID card…');
+  const dataUris: string[] = [];
+  for (const uri of imageUris.slice(0, 2)) {
+    dataUris.push(await uriToBase64DataUri(uri));
+  }
+
+  onProgress?.('Rendering PDF…');
+  const html = buildIdCardHtml(dataUris, imageSizes);
+  let result: {
+    uri: string;
+    numberOfPages?: number;
+    base64?: string | null;
+  };
+  try {
+    result = await Print.printToFileAsync({
+      html,
+      base64: true,
+      width: A4_PAGE_WIDTH,
+      height: A4_PAGE_HEIGHT,
+    });
+  } catch (e) {
+    throw new Error(
+      `The PDF renderer failed. ${
+        e instanceof Error ? e.message : 'Unknown rendering error.'
+      }`,
+    );
+  }
+
+  return {
+    uri: result.uri,
+    numberOfPages: 1,
+    base64: result.base64,
+  };
+}
+
 /**
  * Renders the assembled HTML to a PDF via expo-print. The file lands in the
  * app cache directory; the caller moves it into permanent storage.

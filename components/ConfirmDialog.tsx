@@ -40,7 +40,12 @@ export default function ConfirmDialog({
     >
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <View style={styles.iconWrap}>
+          <View
+            style={[
+              styles.iconWrap,
+              danger ? styles.iconWrapDanger : styles.iconWrapNeutral,
+            ]}
+          >
             <Ionicons
               name={icon}
               size={26}
@@ -93,10 +98,15 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(220, 38, 38, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
+  },
+  iconWrapDanger: {
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+  },
+  iconWrapNeutral: {
+    backgroundColor: 'rgba(37, 99, 235, 0.14)',
   },
   title: {
     ...typography.cardTitle,

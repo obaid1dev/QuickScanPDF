@@ -13,13 +13,29 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useScanSession } from '@/hooks/useScanSession';
+import type { ScanMode } from '@/hooks/useScanSession';
 import { normalizeToJpeg } from '@/lib/imageProcessing';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
+// An ID card is exactly two images: front and back, always in that order.
+const MAX_ID_CARD_PAGES = 2;
+
 export default function CameraScreen() {
   const router = useRouter();
-  const { pages, isActive, addPage, clearSession } = useScanSession();
+  const { pages, isActive, addPage, clearSession, scanMode, setScanMode, getPages } =
+    useScanSession();
   const [scanning, setScanning] = useState(false);
+  // The mode picker is only offered before a session starts; once pages exist
+  // the session's own mode wins so a half-scanned ID card can never be mixed
+  // with document pages.
+  const [mode, setMode] = useState<ScanMode>(() =>
+    isActive ? scanMode : 'document',
+  );
+
+  const isIdCard = mode === 'id_card';
+  const capturedCount = pages.length;
+  const idCardComplete = isIdCard && capturedCount >= MAX_ID_CARD_PAGES;
+  const idCardSide: 'front' | 'back' = capturedCount === 0 ? 'front' : 'back';
 
   const goBackWithConfirm = useCallback(() => {
     if (isActive) {
@@ -43,9 +59,30 @@ export default function CameraScreen() {
     }
   }, [isActive, pages.length, clearSession, router]);
 
+  const chooseMode = useCallback(
+    (next: ScanMode) => {
+      if (next === mode) {
+        return;
+      }
+      void Haptics.selectionAsync();
+      setMode(next);
+      setScanMode(next);
+    },
+    [mode, setScanMode],
+  );
+
   const finishCapture = useCallback(
     (uris: string[], hadPagesBefore: boolean) => {
-      for (const uri of uris) {
+      const current = getPages().length;
+      // ID Card mode is capped at front + back so a stray extra capture can
+      // never push a third image into a two-slot export.
+      const accepted = isIdCard
+        ? uris.slice(0, Math.max(0, MAX_ID_CARD_PAGES - current))
+        : uris;
+      if (accepted.length === 0) {
+        return;
+      }
+      for (const uri of accepted) {
         addPage(uri);
       }
       if (hadPagesBefore) {
@@ -54,7 +91,7 @@ export default function CameraScreen() {
         router.push('/editor');
       }
     },
-    [addPage, router],
+    [isIdCard, getPages, addPage, router],
   );
 
   const scan = async () => {
@@ -62,6 +99,8 @@ export default function CameraScreen() {
       return;
     }
     setScanning(true);
+    // Keep the session's mode in step with the UI the moment capture begins.
+    setScanMode(mode);
     const hadPages = isActive;
     try {
       // The scanner is a native TurboModule (Google ML Kit on Android,
@@ -72,7 +111,9 @@ export default function CameraScreen() {
       const scanner = await import('react-native-document-scanner-plugin');
       const result = await scanner.default.scanDocument({
         croppedImageQuality: 90,
-        maxNumDocuments: 10,
+        // ID Card mode captures one side per pass so the front → back prompts
+        // stay in a fixed order; Document mode keeps multi-page capture.
+        maxNumDocuments: isIdCard ? 1 : 10,
         responseType: scanner.ResponseType.ImageFilePath,
       });
       const uris = result.scannedImages ?? [];
@@ -97,10 +138,11 @@ export default function CameraScreen() {
     // out-of-process and returns only what the user selects, so it needs no
     // broad media permission. Declaring/requesting READ_MEDIA_IMAGES is a Play
     // policy violation ("Photo and Video Permissions") for this use case.
+    setScanMode(mode);
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: 0,
+      allowsMultipleSelection: !isIdCard,
+      selectionLimit: isIdCard ? 1 : 0,
       quality: 1,
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -112,6 +154,28 @@ export default function CameraScreen() {
       finishCapture(normalizedUris, hadPages);
     }
   };
+
+  const heroTitle = isIdCard
+    ? capturedCount === 0
+      ? 'Scan the front'
+      : capturedCount === 1
+        ? 'Now scan the back'
+        : 'Both sides captured'
+    : 'Scan a document';
+
+  const heroSubtitle = isIdCard
+    ? capturedCount === 0
+      ? 'Place your ID card on a flat surface. The camera finds the edges and crops it to card size — you will capture the back next.'
+      : capturedCount === 1
+        ? 'Front captured. Flip your card over and capture the back so both sides land on one page.'
+        : 'Front and back are ready. Open the editor to review them, then convert to a single-page PDF.'
+    : 'The camera finds the edges of your document, crops and straightens it automatically. Hold the phone still over each page to capture it, then review everything in the editor.';
+
+  const scanButtonLabel = isIdCard
+    ? capturedCount === 0
+      ? 'Scan front'
+      : 'Scan back'
+    : 'Start Scanning';
 
   return (
     <View style={styles.root}>
@@ -128,14 +192,70 @@ export default function CameraScreen() {
 
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
-          <Ionicons name="scan" size={40} color={colors.primary} />
+          <Ionicons
+            name={isIdCard ? 'card-outline' : 'scan'}
+            size={40}
+            color={colors.primary}
+          />
         </View>
-        <Text style={styles.title}>Scan a document</Text>
-        <Text style={styles.subtitle}>
-          The camera finds the edges of your document, crops and straightens it
-          automatically. Hold the phone still over each page to capture it,
-          then review everything in the editor.
-        </Text>
+
+        {!isActive ? (
+          <View style={styles.modeRow}>
+            <Pressable
+              onPress={() => chooseMode('document')}
+              style={({ pressed }) => [
+                styles.modeChip,
+                !isIdCard && styles.modeChipActive,
+                pressed && styles.modeChipPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: !isIdCard }}
+              accessibilityLabel="Document mode"
+            >
+              <Ionicons
+                name="document-outline"
+                size={16}
+                color={!isIdCard ? colors.white : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.modeChipText,
+                  !isIdCard && styles.modeChipTextActive,
+                ]}
+              >
+                Document
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => chooseMode('id_card')}
+              style={({ pressed }) => [
+                styles.modeChip,
+                isIdCard && styles.modeChipActive,
+                pressed && styles.modeChipPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isIdCard }}
+              accessibilityLabel="ID card mode"
+            >
+              <Ionicons
+                name="card-outline"
+                size={16}
+                color={isIdCard ? colors.white : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.modeChipText,
+                  isIdCard && styles.modeChipTextActive,
+                ]}
+              >
+                ID Card
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Text style={styles.title}>{heroTitle}</Text>
+        <Text style={styles.subtitle}>{heroSubtitle}</Text>
       </View>
 
       <SafeAreaView edges={['bottom']} style={styles.bottomArea}>
@@ -158,7 +278,9 @@ export default function CameraScreen() {
             </View>
             <View style={styles.sessionTextWrap}>
               <Text style={styles.sessionTitle}>
-                {pages.length} page{pages.length === 1 ? '' : 's'} in this scan
+                {isIdCard
+                  ? 'Front & back in this scan'
+                  : `${pages.length} page${pages.length === 1 ? '' : 's'} in this scan`}
               </Text>
               <Text style={styles.sessionSub}>Review &amp; continue editing</Text>
             </View>
@@ -170,36 +292,56 @@ export default function CameraScreen() {
           </Pressable>
         ) : null}
 
-        <Pressable
-          onPress={scan}
-          disabled={scanning}
-          style={({ pressed }) => [
-            styles.scanBtn,
-            (pressed || scanning) && styles.scanBtnPressed,
-          ]}
-          accessibilityLabel="Start scanning"
-        >
-          {scanning ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <>
-              <Ionicons name="camera" size={22} color={colors.white} />
-              <Text style={styles.scanBtnText}>Start Scanning</Text>
-            </>
-          )}
-        </Pressable>
+        {idCardComplete ? (
+          <Text style={styles.hintText}>
+            Both sides captured — tap the card above to review and convert.
+          </Text>
+        ) : (
+          <>
+            <Pressable
+              onPress={scan}
+              disabled={scanning}
+              style={({ pressed }) => [
+                styles.scanBtn,
+                (pressed || scanning) && styles.scanBtnPressed,
+              ]}
+              accessibilityLabel={scanButtonLabel}
+            >
+              {scanning ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <>
+                  <Ionicons name="camera" size={22} color={colors.white} />
+                  <Text style={styles.scanBtnText}>{scanButtonLabel}</Text>
+                </>
+              )}
+            </Pressable>
 
-        <Pressable
-          onPress={openGallery}
-          style={({ pressed }) => [
-            styles.galleryBtn,
-            pressed && styles.galleryBtnPressed,
-          ]}
-          accessibilityLabel="Import from gallery"
-        >
-          <Ionicons name="images-outline" size={20} color={colors.textPrimary} />
-          <Text style={styles.galleryBtnText}>Import from Gallery</Text>
-        </Pressable>
+            <Pressable
+              onPress={openGallery}
+              style={({ pressed }) => [
+                styles.galleryBtn,
+                pressed && styles.galleryBtnPressed,
+              ]}
+              accessibilityLabel={
+                isIdCard
+                  ? `Import ${idCardSide} from gallery`
+                  : 'Import from gallery'
+              }
+            >
+              <Ionicons
+                name="images-outline"
+                size={20}
+                color={colors.textPrimary}
+              />
+              <Text style={styles.galleryBtnText}>
+                {isIdCard
+                  ? `Import ${idCardSide === 'front' ? 'front' : 'back'} from Gallery`
+                  : 'Import from Gallery'}
+              </Text>
+            </Pressable>
+          </>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -237,6 +379,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    columnGap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.round,
+    padding: 4,
+    marginBottom: spacing.sm,
+  },
+  modeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 6,
+    borderRadius: radii.round,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 8,
+  },
+  modeChipActive: {
+    backgroundColor: colors.primary,
+  },
+  modeChipPressed: {
+    opacity: 0.8,
+  },
+  modeChipText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modeChipTextActive: {
+    color: colors.white,
   },
   title: {
     ...typography.screenTitle,
@@ -290,6 +462,12 @@ const styles = StyleSheet.create({
   sessionSub: {
     ...typography.badge,
     color: colors.textSecondary,
+  },
+  hintText: {
+    ...typography.secondary,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   scanBtn: {
     flexDirection: 'row',

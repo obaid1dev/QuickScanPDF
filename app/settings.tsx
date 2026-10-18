@@ -82,7 +82,9 @@ export default function SettingsScreen() {
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Ads in app</Text>
             <Text style={styles.rowSub}>
-              {ADS_ENABLED ? 'Ad-supported (banner + interstitial)' : 'Ad-free — no third-party trackers.'}
+              {ADS_ENABLED
+                ? 'Ad-supported (banner, viewer banner, interstitial and optional rewarded ads)'
+                : 'Ad-free — no third-party trackers.'}
             </Text>
           </View>
         </View>
@@ -94,9 +96,10 @@ export default function SettingsScreen() {
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>About</Text>
             <Text style={styles.rowSub}>
-              QuickScan PDF v{APP_VERSION} is 100% offline. All scans and
-              documents are stored locally on your device nothing is uploaded to
-              the cloud.
+              QuickScan PDF v{APP_VERSION} is 100% offline. Copy text from scans
+              with on-device text recognition, and use ID card mode to fit both
+              sides of a card on one page. All scans and documents are stored
+              locally on your device — nothing is uploaded to the cloud.
             </Text>
           </View>
         </View>

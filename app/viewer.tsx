@@ -18,8 +18,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { STORAGE_KEYS } from '@/constants/config';
 import { getItem } from '@/lib/storage';
 import { getImagePixelSize } from '@/lib/imageProcessing';
+import AdBanner from '@/components/AdBanner';
+import OcrFlowView from '@/components/OcrFlowView';
 import { useInterstitialAd } from '@/hooks/useInterstitialAd';
 import { useInterstitialOnBack } from '@/hooks/useInterstitialOnBack';
+import { useOcrFlow } from '@/hooks/useOcrFlow';
+import { ADS_ENABLED, AD_UNIT_IDS } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import { savePdfToDevice } from '@/lib/fileManager';
 import type { Document } from '@/types/document';
@@ -111,9 +115,9 @@ export default function ViewDocumentScreen() {
     }
   }, [doc]);
 
-  // Preload the interstitial while the document is actually loaded, so it is
-  // likely ready by the time the user leaves. It never fires anywhere else.
   const interstitial = useInterstitialAd(doc != null);
+  const ocr = useOcrFlow(ADS_ENABLED);
+
   const leaveViewer = useCallback(() => {
     router.back();
   }, [router]);
@@ -127,6 +131,14 @@ export default function ViewDocumentScreen() {
     void Haptics.selectionAsync();
     handleBack();
   }, [handleBack]);
+
+  const extractAll = useCallback(() => {
+    if (!doc?.pages?.length) {
+      return;
+    }
+    void Haptics.selectionAsync();
+    ocr.requestOcr(doc.pages, doc.title);
+  }, [doc, ocr]);
 
   if (loading) {
     return (
@@ -176,15 +188,25 @@ export default function ViewDocumentScreen() {
               {doc.pageCount} page{doc.pageCount === 1 ? '' : 's'}
             </Text>
           </View>
-<View style={styles.headerActions}>
-          <Pressable
-            hitSlop={8}
-            onPress={() => void downloadDoc()}
-            style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}
-            accessibilityLabel="Download PDF"
-          >
-            <Ionicons name="download-outline" size={20} color={colors.textPrimary} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            {pages.length > 0 ? (
+              <Pressable
+                hitSlop={8}
+                onPress={extractAll}
+                style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}
+                accessibilityLabel="Extract text from this document"
+              >
+                <Ionicons name="text-outline" size={20} color={colors.textPrimary} />
+              </Pressable>
+            ) : null}
+            <Pressable
+              hitSlop={8}
+              onPress={() => void downloadDoc()}
+              style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}
+              accessibilityLabel="Download PDF"
+            >
+              <Ionicons name="download-outline" size={20} color={colors.textPrimary} />
+            </Pressable>
           <Pressable
             hitSlop={8}
             onPress={shareDoc}
@@ -196,6 +218,13 @@ export default function ViewDocumentScreen() {
         </View>
       </View>
     </SafeAreaView>
+
+    {doc && ADS_ENABLED && pages.length > 0 ? (
+      <SafeAreaView edges={['bottom']} style={styles.adSlot}>
+        <AdBanner unitId={AD_UNIT_IDS.viewerBanner} />
+      </SafeAreaView>
+    ) : null}
+    <OcrFlowView flow={ocr} />
 
       {pages.length > 0 ? (
         <ScrollView
@@ -234,6 +263,13 @@ export default function ViewDocumentScreen() {
           </Pressable>
         </View>
       )}
+
+      {doc && ADS_ENABLED && pages.length > 0 ? (
+        <SafeAreaView edges={['bottom']} style={styles.adSlot}>
+          <AdBanner unitId={AD_UNIT_IDS.viewerBanner} />
+        </SafeAreaView>
+      ) : null}
+      <OcrFlowView flow={ocr} />
     </View>
   );
 }
@@ -346,5 +382,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 15,
     fontWeight: '700',
+  },
+  adSlot: {
+    backgroundColor: colors.background,
+    paddingTop: spacing.sm,
   },
 });

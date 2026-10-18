@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,9 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import PageThumbnailStrip from '@/components/PageThumbnailStrip';
 import CropModal from '@/components/CropModal';
 import type { CropRect } from '@/components/CropModal';
+import OcrFlowView from '@/components/OcrFlowView';
 import { useScanSession } from '@/hooks/useScanSession';
+import { useOcrFlow } from '@/hooks/useOcrFlow';
 import { applyRotation, cropImage } from '@/lib/imageProcessing';
 import { colors, spacing, typography } from '@/constants/theme';
 
@@ -37,6 +39,9 @@ export default function EditorScreen() {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [cropVisible, setCropVisible] = useState(false);
   const seqRef = useRef(0);
+
+  // Preloads the rewarded ad used to grant extra text extractions.
+  const ocr = useOcrFlow();
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -187,6 +192,20 @@ export default function EditorScreen() {
   const previewUri = activePage?.processedUri ?? activePage?.originalUri ?? null;
   const cropSource = activePage?.processedUri ?? activePage?.originalUri ?? '';
 
+  // 1-based position of the page being edited, used for the OCR sheet title.
+  const activeIndex = activePage
+    ? pages.findIndex((p) => p.id === activePage.id)
+    : -1;
+
+  const extractText = useCallback(() => {
+    if (!activePage) {
+      return;
+    }
+    void Haptics.selectionAsync();
+    const label = activeIndex >= 0 ? `Page ${activeIndex + 1} text` : 'Page text';
+    ocr.requestOcr([activePage.processedUri ?? activePage.originalUri], label);
+  }, [activePage, activeIndex, ocr]);
+
   return (
     <View style={styles.root}>
       <PageThumbnailStrip
@@ -250,6 +269,25 @@ export default function EditorScreen() {
             <Ionicons name="crop-outline" size={22} color={colors.textPrimary} />
             <Text style={styles.toolLabel}>Crop</Text>
           </Pressable>
+
+          <Pressable
+            onPress={extractText}
+            disabled={!activePage}
+            accessibilityLabel="Extract text"
+            style={({ pressed }) => [
+              styles.toolBtn,
+              pressed && styles.toolBtnPressed,
+            ]}
+          >
+            <Ionicons
+              name="text-outline"
+              size={22}
+              color={colors.textPrimary}
+            />
+            <Text style={styles.toolLabel} numberOfLines={2}>
+              Extract text
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.ctaRow}>
@@ -275,6 +313,8 @@ export default function EditorScreen() {
           </Pressable>
         </View>
       </View>
+
+      <OcrFlowView flow={ocr} />
 
       <CropModal
         visible={cropVisible}
@@ -316,12 +356,12 @@ const styles = StyleSheet.create({
   toolRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-between',
     gap: spacing.md,
     marginBottom: spacing.lg,
   },
   toolBtn: {
-    width: 46,
+    flex: 1,
     alignItems: 'center',
     rowGap: 4,
   },
@@ -331,6 +371,7 @@ const styles = StyleSheet.create({
   toolLabel: {
     ...typography.badge,
     color: colors.textSecondary,
+    textAlign: 'center',
   },
   ctaRow: {
     flexDirection: 'row',

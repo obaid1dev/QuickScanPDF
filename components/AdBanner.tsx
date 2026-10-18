@@ -19,7 +19,17 @@ const RETRY_BACKOFF_MS = [3000, 6000, 12000, 30000];
  * whenever the dashboard regains focus, so a banner that missed while the user
  * was away gets another chance on every visit home.
  */
-export default function AdBanner() {
+export interface AdBannerProps {
+  /** Optional custom unit ID (defaults to the Dashboard banner). */
+  unitId?: string;
+  /** Optional custom ad size; defaults to a large anchored adaptive banner. */
+  size?: import('react-native-google-mobile-ads').BannerAdSize;
+}
+
+export default function AdBanner({
+  unitId,
+  size,
+}: AdBannerProps = {}) {
   const [adsModule, setAdsModule] = useState<
     typeof import('react-native-google-mobile-ads') | null
   >(null);
@@ -58,9 +68,13 @@ export default function AdBanner() {
     if (!ADS_ENABLED) {
       console.log('[QuickScan] Banner: disabled via ADS_ENABLED');
     } else if (adsModule) {
-      console.log(`[QuickScan] Banner: AdMob module ready, requesting ${AD_UNIT_IDS.banner}`);
+      console.log(
+        `[QuickScan] Banner: AdMob module ready, requesting ${
+          unitId ?? AD_UNIT_IDS.banner
+        }`,
+      );
     }
-  }, [adsModule]);
+  }, [adsModule, unitId]);
 
   useEffect(
     () => () => {
@@ -110,18 +124,21 @@ export default function AdBanner() {
     return null;
   }
 
-  const { BannerAd, BannerAdSize } = adsModule;
+  const { BannerAd } = adsModule;
 
   // RNGMA's BannerAd does not forward standard View props; an adaptive banner
   // explicitly sized to the device width measures the slot correctly (the
   // library otherwise defaults to full device width anyway).
   const bannerWidth = Math.floor(Dimensions.get('window').width);
+  const resolvedUnitId = unitId ?? AD_UNIT_IDS.banner;
+  const resolvedSize =
+    size ?? adsModule.BannerAdSize.LARGE_ANCHORED_ADAPTIVE_BANNER;
 
   return (
     <View key={nonce} style={styles.container}>
       <BannerAd
-        unitId={AD_UNIT_IDS.banner}
-        size={BannerAdSize.LARGE_ANCHORED_ADAPTIVE_BANNER}
+        unitId={resolvedUnitId}
+        size={resolvedSize}
         width={bannerWidth}
         requestOptions={{
           requestNonPersonalizedAdsOnly: !getAdsConsentPersonalized(),
