@@ -1,4 +1,4 @@
-﻿import * as Print from 'expo-print';
+import * as Print from 'expo-print';
 import { File } from 'expo-file-system';
 
 // A4 dimensions in pixels at expo-print's 72 PPI coordinate system. expo-print
