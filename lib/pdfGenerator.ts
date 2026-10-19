@@ -40,7 +40,7 @@ export async function uriToBase64DataUri(uri: string): Promise<string> {
 
 /**
  * Assembles a single A4 page whose geometry is expressed in FIXED Adobe
- * points (595├ù842 = A4 portrait) ΓÇö never `100vw`/`100vh`. expo-print's
+ * points (595×842 = A4 portrait) — never `100vw`/`100vh`. expo-print's
  * underlying WebView print path (Android's PrintedPdfDocument/WebView and
  * iOS WebKit) does not reliably resolve viewport units to the printed page,
  * which collapses the container and leaves images pinned small in the
@@ -48,7 +48,7 @@ export async function uriToBase64DataUri(uri: string): Promise<string> {
  *
  * Prepared page images are already letterboxed onto an exact-A4-ratio canvas
  * (see `letterboxToA4Page`), so they use a full-bleed layout: the image fills
- * the page and its centering is baked into the image's own pixels ΓÇö no CSS
+ * the page and its centering is baked into the image's own pixels — no CSS
  * centering to depend on. Any other image (odd ratio, or dimensions
  * unavailable at runtime) uses the framed flex layout below: a 24pt margin,
  * `object-fit: contain`, and belt-and-suspenders centering
@@ -72,7 +72,7 @@ function buildPageHtml(
 /**
  * Assembles the A4 page-per-image HTML document. Images are inlined as base64
  * data URIs because on iOS `expo-print`'s WebView cannot load local `file://`
- * asset paths. Pages are sized in fixed Adobe points (595.28├ù841.89, A4
+ * asset paths. Pages are sized in fixed Adobe points (595.28×841.89, A4
  * portrait) matching the page size passed to `printToFileAsync`, so every page
  * renders exactly one A4 output page across rendering engines.
  *
@@ -137,7 +137,7 @@ export interface PdfResult {
   /**
    * The full PDF encoded as base64. Provided because on Android inside Expo Go
    * the `cache/Print/` file is outside the grantable permission set and cannot
-   * be read via any file API ΓÇö expo-print encodes it natively, so callers can
+   * be read via any file API — expo-print encodes it natively, so callers can
    * persist the bytes without reading the source file.
    */
   base64?: string | null;
@@ -148,7 +148,7 @@ export interface PdfResult {
 // ---------------------------------------------------------------------------
 
 // Slot for one side of the card, sized to a real ID-1 card ratio
-// (85.6 ├ù 53.98 mm Γëê 1.586), expressed in print points.
+// (85.6 × 53.98 mm Γëê 1.586), expressed in print points.
 const ID_SLOT_WIDTH_PT = 400;
 const ID_SLOT_HEIGHT_PT = 252;
 // Vertical breathing room between the front and back slots.
@@ -165,7 +165,7 @@ const ID_SLOT_GAP_PT = 40;
  * block-layout rules every print engine honors, so both cards land dead-center.
  *
  * Each image's box is computed from its own pixel ratio so it fits inside the
- * card slot while preserving aspect ratio ΓÇö it is never stretched. When the
+ * card slot while preserving aspect ratio — it is never stretched. When the
  * size is unavailable, `object-fit: contain` inside the full slot does the
  * same job.
  */
