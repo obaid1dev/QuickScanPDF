@@ -32,6 +32,17 @@ export const AD_UNIT_IDS = {
         android: 'ca-app-pub-3940256099942544/5224354917',
       })!
     : 'ca-app-pub-1138568424665362/2545583845',
+
+  /**
+   * Shown when the app returns from the background (never on cold launch).
+   * Gated by a cooldown plus screen/activity suppressions.
+   */
+  appOpen: __DEV__
+    ? Platform.select({
+        ios: 'ca-app-pub-3940256099942544/5137585807',
+        android: 'ca-app-pub-3940256099942544/9257395921',
+      })!
+    : 'ca-app-pub-1138568424665362/1531561674',
 } as const;
 
 /**
@@ -46,8 +57,21 @@ export const STORAGE_KEYS = {
   downloadsDir: 'quickscan:downloads_dir',
   exportCount: 'quickscan:exportCount',
   ocrUsage: 'quickscan:ocrUsage',
+  theme: 'quickscan:theme',
+  rateUsLastRequest: 'quickscan:rateUsLastRequest',
 } as const;
+
+/** App-open ad: minimum gap between two app-open impressions. */
+export const APP_OPEN_MIN_INTERVAL_MS = 4 * 60 * 1000;
+/** App-open ad: hold-off window after an interstitial closes. */
+export const INTERSTITIAL_QUIET_MS = 30 * 1000;
+/** Rewarded ad (OCR): hold-off window after a rewarded ad closes. */
+export const REWARDED_QUIET_MS = 30 * 1000;
+/** Rate-us popup: first eligible after this many successful exports... */
+export const RATE_US_EXPORT_THRESHOLD = 3;
+/** ...and never re-requested within this window. */
+export const RATE_US_COOLDOWN_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const SCANS_FOLDER = 'scans';
 
-export const APP_VERSION = '1.0.4';
+export const APP_VERSION = '1.0.5';

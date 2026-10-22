@@ -3,6 +3,7 @@ import { InteractionManager } from 'react-native';
 import type { RewardedAd as RNGRewardedAd } from 'react-native-google-mobile-ads';
 import { AD_UNIT_IDS } from '@/constants/config';
 import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
+import { notifyRewardedClosed } from '@/lib/adTiming';
 
 // Backoff between rewarded (re)load attempts. Fresh ad units and builds in app
 // review commonly miss their first few requests, then fill fine moments later.
@@ -170,6 +171,9 @@ export function useRewardedAd(active = true): RewardedController {
           if (cancelled || adRef.current !== ad) {
             return;
           }
+          // Let the app-open controller know: it holds off briefly after any
+          // rewarded ad so two full-screen ads never collide.
+          notifyRewardedClosed();
           const cb = callbacksRef.current;
           const earned = earnedRef.current;
           callbacksRef.current = null;

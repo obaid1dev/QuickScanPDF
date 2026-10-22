@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,8 @@ import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import type { OcrSheetState } from '@/hooks/useOcrFlow';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { radii, spacing, typography, type Palette } from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 interface OcrSheetProps {
   state: OcrSheetState;
@@ -29,6 +30,9 @@ interface OcrSheetProps {
  * when a scan yields nothing and never blocks on its own errors.
  */
 export default function OcrSheet({ state, onClose }: OcrSheetProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -199,7 +203,7 @@ export default function OcrSheet({ state, onClose }: OcrSheetProps) {
             <Ionicons
               name="share-outline"
               size={18}
-              color={hasText ? colors.white : colors.textSecondary}
+              color={hasText ? colors.onPrimary : colors.textSecondary}
             />
             <Text style={[styles.primaryBtnText, !hasText && styles.dimmedLabel]}>
               Share as .txt
@@ -211,20 +215,21 @@ export default function OcrSheet({ state, onClose }: OcrSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomColor: colors.secondary,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      backgroundColor: colors.surface,
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
   headerBody: {
     flex: 1,
     marginRight: spacing.sm,
@@ -287,7 +292,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
     backgroundColor: colors.surface,
-    borderTopColor: colors.secondary,
+    borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   actionBtn: {
@@ -311,7 +316,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   primaryBtnText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: 15,
     fontWeight: '700',
   },

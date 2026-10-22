@@ -21,9 +21,100 @@ import OcrFlowView from '@/components/OcrFlowView';
 import { useScanSession } from '@/hooks/useScanSession';
 import { useOcrFlow } from '@/hooks/useOcrFlow';
 import { applyRotation, cropImage } from '@/lib/imageProcessing';
-import { colors, spacing, typography } from '@/constants/theme';
+import { spacing, typography, type Palette } from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    previewArea: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    zoomHost: {
+      width: '100%',
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    toolbar: {
+      backgroundColor: colors.surface,
+      borderTopColor: colors.border,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      // Extra bottom clearance so the toolbar stays clear of the gesture-navigation
+      // area now that the Android navigation bar is hidden (edge-to-edge).
+      paddingBottom: spacing.xl,
+    },
+    toolRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    toolBtn: {
+      flex: 1,
+      alignItems: 'center',
+      rowGap: 4,
+    },
+    toolBtnPressed: {
+      opacity: 0.6,
+    },
+    toolLabel: {
+      ...typography.badge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    ctaRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    ctaSecondary: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      columnGap: 6,
+      backgroundColor: colors.surfaceLighter,
+      borderRadius: 999,
+      paddingVertical: 14,
+    },
+    ctaSecondaryText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    ctaPrimary: {
+      flex: 1.4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      columnGap: 6,
+      backgroundColor: colors.primary,
+      borderRadius: 999,
+      paddingVertical: 14,
+    },
+    ctaPrimaryText: {
+      color: colors.onPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    btnPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.98 }],
+    },
+  });
 
 export default function EditorScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const {
     pages,
@@ -308,7 +399,7 @@ export default function EditorScreen() {
               pressed && styles.btnPressed,
             ]}
           >
-            <Ionicons name="document-text" size={18} color={colors.white} />
+            <Ionicons name="document-text" size={18} color={colors.onPrimary} />
             <Text style={styles.ctaPrimaryText}>Convert to PDF</Text>
           </Pressable>
         </View>
@@ -325,90 +416,3 @@ export default function EditorScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  previewArea: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  zoomHost: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolbar: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.secondary,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    // Extra bottom clearance so the toolbar stays clear of the gesture-navigation
-    // area now that the Android navigation bar is hidden (edge-to-edge).
-    paddingBottom: spacing.xl,
-  },
-  toolRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  toolBtn: {
-    flex: 1,
-    alignItems: 'center',
-    rowGap: 4,
-  },
-  toolBtnPressed: {
-    opacity: 0.6,
-  },
-  toolLabel: {
-    ...typography.badge,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  ctaSecondary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 6,
-    backgroundColor: colors.surfaceLighter,
-    borderRadius: 999,
-    paddingVertical: 14,
-  },
-  ctaSecondaryText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  ctaPrimary: {
-    flex: 1.4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingVertical: 14,
-  },
-  ctaPrimaryText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  btnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-});

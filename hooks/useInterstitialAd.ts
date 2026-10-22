@@ -3,6 +3,7 @@ import { InteractionManager } from 'react-native';
 import type { InterstitialAd as RNGInterstitialAd } from 'react-native-google-mobile-ads';
 import { AD_UNIT_IDS, STORAGE_KEYS } from '@/constants/config';
 import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
+import { notifyInterstitialClosed } from '@/lib/adTiming';
 import { getItem, setItem } from '@/lib/storage';
 
 export interface InterstitialController {
@@ -108,6 +109,9 @@ export function useInterstitialAd(active = true): InterstitialController {
           if (cancelled || adRef.current !== ad) {
             return;
           }
+          // Let the app-open controller know: it holds off for 30 s after an
+          // interstitial so two full-screen ads never collide.
+          notifyInterstitialClosed();
           const cb = onFinishedRef.current;
           onFinishedRef.current = null;
           if (cb) {

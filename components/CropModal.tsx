@@ -20,7 +20,8 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
-import { colors, spacing, typography } from '@/constants/theme';
+import { spacing, typography, type Palette } from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { getImagePixelSize } from '@/lib/imageProcessing';
 
 const HANDLE_HIT = 44;
@@ -61,6 +62,9 @@ export default function CropModal({
   onCancel,
   onApply,
 }: CropModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [container, setContainer] = useState<{
     width: number;
     height: number;
@@ -417,20 +421,21 @@ export default function CropModal({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.secondary,
-  },
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
   barBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -461,16 +466,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: '#030303',
+    backgroundColor: colors.imageStage,
   },
   mask: {
     position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: colors.backdrop,
   },
   boxBorder: {
     position: 'absolute',
     borderWidth: 2,
-    borderColor: colors.white,
+    borderColor: colors.onScrim,
     borderRadius: 2,
   },
   moveLayer: {
@@ -487,7 +492,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 5,
-    backgroundColor: colors.white,
+    backgroundColor: colors.onScrim,
     borderWidth: 2,
     borderColor: colors.primary,
   },
@@ -495,7 +500,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: colors.white,
+    backgroundColor: colors.onScrim,
     borderWidth: 2,
     borderColor: colors.primary,
   },

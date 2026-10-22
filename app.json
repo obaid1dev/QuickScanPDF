@@ -2,10 +2,10 @@
   "expo": {
     "name": "QuickScan PDF",
     "slug": "quickscan-pdf",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#09090B",
     "scheme": "quickscan",
     "splash": {
@@ -25,7 +25,7 @@
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "versionCode": 11,
+      "versionCode": 12,
       "adaptiveIcon": {
         "backgroundColor": "#2C5EBD",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -80,6 +80,10 @@
         {
           "ios": {
             "deploymentTarget": "16.4"
+          },
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ]

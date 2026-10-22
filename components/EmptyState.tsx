@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography } from '@/constants/theme';
+import { radii, spacing, typography, type Palette } from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 interface EmptyStateProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -9,7 +10,40 @@ interface EmptyStateProps {
   subtitle: string;
 }
 
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xxl * 2,
+    },
+    iconWrap: {
+      width: 88,
+      height: 88,
+      borderRadius: radii.lg,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.lg,
+    },
+    title: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      fontSize: 18,
+      marginBottom: spacing.sm,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
+
 export default function EmptyState({ icon, title, subtitle }: EmptyStateProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
@@ -20,33 +54,3 @@ export default function EmptyState({ icon, title, subtitle }: EmptyStateProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl * 2,
-  },
-  iconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    fontSize: 18,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    ...typography.secondary,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});

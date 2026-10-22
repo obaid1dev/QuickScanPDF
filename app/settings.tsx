@@ -1,12 +1,114 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useDocuments } from '@/hooks/useDocuments';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { ADS_ENABLED, APP_VERSION } from '@/constants/config';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import {
+  radii,
+  spacing,
+  typography,
+  type Palette,
+  type ThemeSetting,
+} from '@/constants/theme';
+
+const THEME_OPTIONS: Array<{ value: ThemeSetting; label: string }> = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: spacing.xl,
+      rowGap: spacing.lg,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      columnGap: spacing.md,
+    },
+    rowBody: {
+      flex: 1,
+    },
+    rowTitle: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    rowTitleDanger: {
+      ...typography.cardTitle,
+      color: colors.dangerText,
+      marginBottom: 4,
+    },
+    rowSub: {
+      ...typography.secondary,
+      color: colors.textSecondary,
+      lineHeight: 19,
+    },
+    themeRow: {
+      marginTop: spacing.md,
+      flexDirection: 'row',
+      columnGap: spacing.sm,
+    },
+    themeOption: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 10,
+      borderRadius: radii.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    themeOptionActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    themeOptionPressed: {
+      transform: [{ scale: 0.97 }],
+    },
+    themeOptionLabel: {
+      ...typography.secondary,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    themeOptionLabelActive: {
+      color: colors.primary,
+    },
+    dangerBtn: {
+      backgroundColor: colors.danger,
+      borderRadius: radii.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 8,
+    },
+    dangerBtnPressed: {
+      transform: [{ scale: 0.96 }],
+      opacity: 0.9,
+    },
+    dangerBtnText: {
+      color: colors.onDanger,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+  });
 
 export default function SettingsScreen() {
+  const { colors, setting, setSetting } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { documents, clearAll, totalStorageBytes, totalStorageLabel } = useDocuments();
   const [clearing, setClearing] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -27,8 +129,56 @@ export default function SettingsScreen() {
     }
   };
 
+  const pickTheme = (next: ThemeSetting) => {
+    if (next === setting) {
+      return;
+    }
+    void Haptics.selectionAsync();
+    setSetting(next);
+  };
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <Ionicons name="contrast-outline" size={20} color={colors.textSecondary} />
+          <View style={styles.rowBody}>
+            <Text style={styles.rowTitle}>Theme</Text>
+            <Text style={styles.rowSub}>
+              Light or dark — your choice is remembered.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.themeRow}>
+          {THEME_OPTIONS.map((option) => {
+            const active = setting === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => pickTheme(option.value)}
+                style={({ pressed }) => [
+                  styles.themeOption,
+                  active && styles.themeOptionActive,
+                  pressed && styles.themeOptionPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${option.label} theme`}
+                accessibilityState={{ selected: setting === option.value }}
+              >
+                <Text
+                  style={[
+                    styles.themeOptionLabel,
+                    active && styles.themeOptionLabelActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
       <View style={styles.card}>
         <View style={styles.row}>
           <Ionicons name="server-outline" size={20} color={colors.textSecondary} />
@@ -52,7 +202,10 @@ export default function SettingsScreen() {
           <Pressable
             onPress={() => setConfirmVisible(true)}
             disabled={clearing || documents.length === 0}
-            style={styles.dangerBtn}
+            style={({ pressed }) => [
+              styles.dangerBtn,
+              pressed && styles.dangerBtnPressed,
+            ]}
           >
             <Text style={styles.dangerBtnText}>
               {clearing ? '…' : 'Clear'}
@@ -106,55 +259,3 @@ export default function SettingsScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.xl,
-    rowGap: spacing.lg,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-    padding: spacing.lg,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    columnGap: spacing.md,
-  },
-  rowBody: {
-    flex: 1,
-  },
-  rowTitle: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  rowTitleDanger: {
-    ...typography.cardTitle,
-    color: colors.danger,
-    marginBottom: 4,
-  },
-  rowSub: {
-    ...typography.secondary,
-    color: colors.textSecondary,
-    lineHeight: 19,
-  },
-  dangerBtn: {
-    backgroundColor: colors.danger,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  dangerBtnText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-});

@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -11,7 +11,14 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import ActionMenu, { type ActionMenuOption } from '@/components/ActionMenu';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import {
+  cardShadow,
+  radii,
+  spacing,
+  typography,
+  type Palette,
+} from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { formatBytes } from '@/lib/fileManager';
 import { formatRelativeTime } from '@/lib/format';
 import type { Document } from '@/types/document';
@@ -25,6 +32,114 @@ interface DocumentCardProps {
   onPress?: (doc: Document) => void;
 }
 
+const makeStyles = (colors: Palette, shade: 'light' | 'dark') =>
+  StyleSheet.create({
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      boxShadow: cardShadow[shade],
+    },
+    cardPressed: {
+      opacity: 0.92,
+      transform: [{ scale: 0.985 }],
+    },
+    thumbWrap: {
+      width: 52,
+      height: 64,
+      borderRadius: radii.sm,
+      backgroundColor: colors.surfaceLighter,
+      overflow: 'hidden',
+    },
+    thumb: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: colors.surfaceLighter,
+    },
+    thumbFallback: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    body: {
+      flex: 1,
+      marginLeft: spacing.md,
+      marginRight: spacing.xs,
+    },
+    title: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    meta: {
+      ...typography.badge,
+      color: colors.textSecondary,
+      marginTop: 3,
+    },
+    menuButton: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    modalCard: {
+      width: '100%',
+      backgroundColor: colors.surfaceLighter,
+      borderRadius: radii.lg,
+      padding: spacing.xl,
+    },
+    modalTitle: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      marginBottom: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      color: colors.textPrimary,
+      fontSize: 15,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: spacing.sm,
+      marginTop: spacing.lg,
+    },
+    modalBtn: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 10,
+      borderRadius: radii.sm,
+    },
+    modalBtnSecondary: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    modalBtnPrimary: {
+      backgroundColor: colors.primary,
+    },
+    modalBtnPrimaryText: {
+      color: colors.onPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+  });
+
 function DocumentCard({
   document,
   onRename,
@@ -33,6 +148,9 @@ function DocumentCard({
   onDelete,
   onPress,
 }: DocumentCardProps) {
+  const { colors, resolved } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors, resolved), [colors, resolved]);
+
   const [imageFailed, setImageFailed] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -162,13 +280,17 @@ function DocumentCard({
             <View style={styles.modalActions}>
               <Pressable
                 onPress={() => setRenameVisible(false)}
-                style={styles.modalBtn}
+                style={({ pressed }) => [styles.modalBtn, pressed && { opacity: 0.85 }]}
               >
                 <Text style={styles.modalBtnSecondary}>Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={submitRename}
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
+                style={({ pressed }) => [
+                  styles.modalBtn,
+                  styles.modalBtnPrimary,
+                  pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+                ]}
               >
                 <Text style={styles.modalBtnPrimaryText}>Save</Text>
               </Pressable>
@@ -179,116 +301,5 @@ function DocumentCard({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    elevation: 2,
-    shadowColor: '#000000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  cardPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.985 }],
-  },
-  thumbWrap: {
-    width: 52,
-    height: 64,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surfaceLighter,
-    overflow: 'hidden',
-  },
-  thumb: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: colors.surfaceLighter,
-  },
-  thumbFallback: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: {
-    flex: 1,
-    marginLeft: spacing.md,
-    marginRight: spacing.xs,
-  },
-  title: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  meta: {
-    ...typography.badge,
-    color: colors.textSecondary,
-    marginTop: 3,
-  },
-  menuButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: colors.surfaceLighter,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-  },
-  modalTitle: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    color: colors.textPrimary,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    marginTop: spacing.lg,
-  },
-  modalBtn: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    borderRadius: radii.sm,
-  },
-  modalBtnSecondary: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  modalBtnPrimary: {
-    backgroundColor: colors.primary,
-  },
-  modalBtnPrimaryText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});
 
 export default memo(DocumentCard);

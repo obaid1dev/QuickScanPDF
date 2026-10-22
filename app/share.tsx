@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -34,7 +34,8 @@ import {
 import { defaultScanTitle } from '@/lib/format';
 import { useInterstitialAd, incrementExportCount } from '@/hooks/useInterstitialAd';
 import { useInterstitialOnBack } from '@/hooks/useInterstitialOnBack';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { radii, spacing, typography, type Palette } from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import type { Document } from '@/types/document';
 
 type Stage = 'generating' | 'done' | 'error';
@@ -45,6 +46,8 @@ interface ResultInfo {
 }
 
 export default function ShareScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { pages, isActive, clearSession } = useScanSession();
   const { create } = useDocuments();
@@ -371,7 +374,7 @@ export default function ShareScreen() {
               pressed && styles.btnPressed,
             ]}
           >
-            <Ionicons name="share-outline" size={18} color={colors.white} />
+            <Ionicons name="share-outline" size={18} color={colors.onPrimary} />
             <Text style={styles.primaryBtnText}>Share</Text>
           </Pressable>
         </View>
@@ -387,7 +390,8 @@ export default function ShareScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
   wrap: {
     flex: 1,
     backgroundColor: colors.background,
@@ -420,7 +424,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: spacing.xl,
     borderWidth: 1,
-    borderColor: colors.secondary,
+    borderColor: colors.border,
   },
   checkRow: {
     flexDirection: 'row',
@@ -461,7 +465,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   metaDot: {
-    color: colors.secondary,
+    color: colors.border,
     marginHorizontal: 6,
   },
   actionRow: {
@@ -499,7 +503,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   primaryBtnText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: 15,
     fontWeight: '700',
   },

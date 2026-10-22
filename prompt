@@ -1,61 +1,122 @@
-# Prompt for OpenCode — Add OCR + ID Card Mode + More Ad Placements
-
-The two new ad unit IDs (viewer banner and rewarded) are already filled in below, so it is ready to paste.
-
-Paste everything below the `---` into OpenCode.
-
+Use the design skills listed in AGENTS.md for this UI work.
 ---
 
 ## SCOPE
 
-Add two user-facing features and two ad placements to QuickScan PDF. Do NOT touch existing working systems: native scanner capture, PDF generation layout, the Dashboard banner, the post-export/back-to-home interstitial, consent flow, immersive status/nav bar, icon, or the `blockedPermissions` setup. Keep the app fully offline for its core features. Bump the version and push to GitHub. **Do NOT run `eas build` or `eas submit`.**
+Implement four changes plus one build-quality fix in QuickScan PDF:
 
-## FEATURE 1: Copy text from a scan (on-device OCR)
+1. Rate-us popup
+2. App-open ad
+3. UI polish
+4. Light theme (with the existing dark theme kept)
+5. Enable R8 code shrinking and obfuscation for release builds
 
-- Add an "Extract text" action to the Editor screen (per current page) and to the PDF/document viewer if it has page images available.
-- Use an **on-device** text recognition library that works offline with no API keys and no cloud calls, such as Google ML Kit text recognition through a maintained React Native wrapper (e.g. `@react-native-ml-kit/text-recognition`). Check compatibility with the installed Expo SDK (57) and the New Architecture setting before choosing; if that package is incompatible, pick the best maintained on-device alternative and tell me why.
-- Result screen/sheet: show the recognized text in a scrollable, selectable text area, with "Copy" and "Share as .txt" buttons. If no text is found, show a friendly "No text detected, try a clearer, well-lit scan" message.
-- Make sure no media/storage permissions are added by this library. If any are merged into the manifest, add them to `blockedPermissions` and verify with a local `expo prebuild` (then delete the generated `android/` folder and revert any package.json script edits it makes, as was done before).
-- Run recognition off the main interaction path with a loading indicator, and handle errors without crashing.
+Do NOT change: the native scanner and its auto-crop, PDF generation layout, gallery import through the system Photo Picker, `blockedPermissions`, the AdMob banner, interstitial, or rewarded setup, the consent flow, the immersive status and nav bar behavior, the app icon, or the portrait orientation lock (kept on purpose). Do NOT upgrade Expo, React Native, or any Google library. Do NOT attempt the deprecated edge-to-edge or large-screen warnings.
 
-## FEATURE 2: ID card mode
+Bump the version and push to GitHub. **Do NOT run `eas build` or `eas submit`.**
 
-- On the camera/scanner entry point (Dashboard FAB flow or the first screen of scanning), add a mode choice: **Document** (default, current behavior) and **ID Card**.
-- ID Card mode: guide the user to scan the **front**, then the **back** (two prompts like "Scan the front", "Now scan the back"), using the same native scanner for each.
-- When exporting in ID Card mode, generate **one A4 page** with both images stacked vertically, centered, each at a realistic ID size ratio with comfortable margins, white background, aspect ratio preserved (never stretched). Reuse the existing `expo-print` HTML approach with a dedicated template using fixed `pt` dimensions (595pt x 842pt) like the current layout fix.
-- Name the file sensibly (e.g. `ID_Card_YYYY_MM_DD_HHmm.pdf`) and let the existing save/share/history flow handle it. The Dashboard card should show normally.
-- Document mode must remain completely unchanged.
+---
 
-## ADS: two new placements (policy-safe)
+## 1. RATE-US POPUP
 
-New ad unit IDs (use Google test IDs while `__DEV__` is true, real IDs in production, same pattern as the existing `AD_UNIT_IDS`):
-- Viewer banner, production: `ca-app-pub-1138568424665362/6530342141` (Android test: `ca-app-pub-3940256099942544/6300978111`)
-- Rewarded, production: `ca-app-pub-1138568424665362/2545583845` (Android test: `ca-app-pub-3940256099942544/5224354917`)
+- Install `expo-store-review` with `npx expo install expo-store-review`.
+- Reuse the existing successful-export counter. If none exists, add one in local storage (key `quickscan:exportCount`).
+- Show the rating request once, after the **3rd** successful export, when the user returns to the Dashboard.
+- Call `StoreReview.isAvailableAsync()` first. If it's true, call `StoreReview.requestReview()`.
+- Store a timestamp of the last request. Never request again within 90 days, even if the user exports more.
+- Never show the rating request on the same screen as an ad, or on the camera, editor, or share-processing screens.
+- Do not add a custom "Rate us" dialog that pressures the user, and do not offer anything in exchange for a rating.
+- Make sure a failure here never affects export, navigation, or ads.
 
-1. **Viewer banner:** show a banner (anchored adaptive) at the bottom of the existing-PDF viewer screen, using the viewer banner unit. It must never overlap buttons or the document content, and must render nothing if it fails to load. Respect `ADS_ENABLED` and the consent state.
-2. **Rewarded ad on OCR:**
-   - Add `OCR_FREE_PER_DAY = 2` to `constants/config.ts`. Track daily OCR uses in local storage (reset by calendar day).
-   - The first N uses per day are free. After that, show a clear dialog: "Watch a short ad to extract more text today" with **Watch ad** and **Cancel** buttons. Only if the user taps Watch ad, show the rewarded ad. Grant one OCR use only when the reward is earned (`EARNED_REWARD`).
-   - If the rewarded ad is not loaded or fails, do NOT block the user: let that OCR run proceed for free and log it in `__DEV__`. Never trap the user behind an ad that can't show.
-   - Preload the rewarded ad early (e.g. when the Editor opens) and reload after each show.
-3. Do NOT add any more interstitials, app-open ads, or banners elsewhere. No ads on the camera/scanner screens or while PDFs are generating. The rewarded ad must always be user-initiated and clearly labeled, never auto-shown.
-4. Everything must still no-op cleanly when `ADS_ENABLED = false`.
+## 2. APP-OPEN AD
 
-## CLEANUP, VERSION, GIT
+Ad unit IDs (same pattern as the existing `AD_UNIT_IDS` in `constants/config.ts`):
+- Production: `ca-app-pub-1138568424665362/1531561674`
+- Development test (Android): `ca-app-pub-3940256099942544/9257395921`
 
-- Run `npx tsc --noEmit` and fix errors. Update any in-app text/About that lists features (mention "Copy text from scans" and "ID card mode"; don't claim filters).
-- Read the current `expo.android.versionCode` and increment by 1; bump `expo.version` to the next minor version; keep `APP_VERSION` in `constants/config.ts` in sync.
-- Commit with a clear message and push to GitHub. **Stop there. No build, no submit.**
+Use the test ID when `__DEV__` is true, and the production ID otherwise.
+
+Implement a `useAppOpenAd` hook or small module using the `AppOpenAd` API from `react-native-google-mobile-ads`:
+- **Show only when the app returns from the background** (AppState changes from `background` or `inactive` to `active`). Do NOT show it on a cold launch.
+- **Preload** the next app-open ad as soon as one is shown or fails to load.
+- **Cooldown:** at least 4 minutes between app-open ads.
+- **Never show it** while the user is on the Camera, Editor, or Share screens, during PDF generation, right after an interstitial closed (wait 30 seconds), or right after the rewarded ad.
+- If no ad is loaded or it fails, do nothing. Never block the app or show a loading screen for it.
+- Respect `ADS_ENABLED` and the consent state, exactly like the other ads.
+- Keep the app-open ad off the splash and first screen entirely.
+
+## 3. UI POLISH (refine, don't redesign)
+
+Keep the existing layout, navigation, and screen structure. Only improve how it looks:
+- Consistent spacing scale (for example 4, 8, 12, 16, 24) across all screens.
+- Consistent type scale: screen titles, card titles, body, and captions. Make the hierarchy clearer.
+- Cards: consistent corner radius (12px), consistent padding, and a subtle shadow or border, so they stand out from the background in both themes.
+- Buttons: consistent heights and pressed states. Primary action uses the accent blue `#2563EB` in both themes.
+- Empty states and the Settings screen: tidy alignment and spacing.
+- Make sure no text is cut off on small phones (for example 360dp wide).
+
+## 4. LIGHT THEME (alongside the dark theme)
+
+- Put every color in a single theme definition with two sets of tokens:
+  - **Dark (current):** background `#09090B`, surface `#18181B`, raised surface `#27272A`, border `#3F3F46`, text `#FAFAFA`, muted text `#A1A1AA`.
+  - **Light (new):** background `#F7F3EC` (warm cream), surface `#FFFFFF`, raised surface `#F1EDE4`, border `#E4DED2`, text `#09090B`, muted text `#8A857B`.
+  - Accent `#2563EB` is the same in both.
+- Add a theme setting in Settings with three options: **System**, **Light**, **Dark**. Default to **System**. Save the choice in local storage.
+- Use one hook (for example `useAppTheme`) that all screens read from. Do not hard-code colors in individual screens.
+- Status bar stays hidden everywhere, as before. Only the Android navigation bar color should follow the theme, using the existing `expo-navigation-bar` setup.
+- The document preview and scan thumbnails must still look correct on a light background (add a soft border so white pages don't blend into the cream background).
+- The scanner's own camera UI is native and unchanged by the theme.
+- Check every screen in both themes: Dashboard, Camera, Editor, Share, PDF viewer, Settings, and the empty states.
+
+## 5. R8 CODE SHRINKING AND OBFUSCATION (release builds only)
+
+- Install `expo-build-properties` with `npx expo install expo-build-properties` (if it's not already installed).
+- In `app.json`, add or update the plugin config:
+  ```json
+  [
+    "expo-build-properties",
+    {
+      "android": {
+        "enableProguardInReleaseBuilds": true,
+        "enableShrinkResourcesInReleaseBuilds": true
+      }
+    }
+  ]
+  ```
+- Keep any existing plugin entries (AdMob, the document scanner, the image picker, and so on) unchanged.
+- Do NOT enable these for development builds. They only apply to release builds.
+- R8 can strip code that native libraries load by name. Do not guess at rules. If a production build crashes at launch or during scanning, ads, or OCR, report the exact crash log. The fix will be a targeted `proguard-rules.pro` keep rule, added only for the library that breaks.
+
+## 6. VERIFICATION BEFORE PUSH
+
+- Run `npx tsc --noEmit` and fix every error.
+- Run the linter if one is configured.
+- Confirm the app-open ad, the rate-us popup, and the theme setting don't add any new Android permissions. Run `npx expo prebuild` locally, read the generated manifest, delete the generated `android/` folder, and revert any `package.json` script edits it makes (the same check used before).
+
+## 7. VERSION AND GIT
+
+- Read the current `expo.android.versionCode` in `app.json` and increase it by 1. It must be higher than the version currently in review.
+- Bump `expo.version` to the next patch version, and keep `APP_VERSION` in `constants/config.ts` in sync so Settings shows it.
+- Commit with a clear message, for example `"Release 1: rate-us popup, app-open ad, UI polish, light theme, R8"`, and push to GitHub.
+- **Stop there. Do NOT run `eas build` or `eas submit`.**
 
 ## DELIVERABLE
 
-Summarize: which OCR library was chosen and why, confirmation no new permissions slipped into the manifest, files changed or added, how the rewarded flow behaves when an ad fails, new versionCode and version, and confirmation the push succeeded.
+Summarize:
+- Files changed or added, grouped by the five items above
+- Confirmation that `npx tsc --noEmit` passes
+- Confirmation that the prebuild manifest check found no new permissions
+- The new versionCode and version
+- Confirmation the push succeeded
+- Anything you could not verify without a device or release build (list it clearly, so I know what to test)
 
-## TESTING CHECKLIST (report results)
+## RELEASE TESTING CHECKLIST (for the owner, after the build)
 
-1. OCR returns readable text from a clear document scan and shows the "no text" message on a blank one.
-2. After 2 free OCRs, the dialog appears; Cancel does nothing; Watch ad grants one more use only after the reward is earned.
-3. With airplane mode on, OCR still works and is not blocked.
-4. ID card mode produces one A4 page with front and back, centered and undistorted.
-5. Document mode behaves exactly as before.
-6. Viewer banner shows and never covers content or buttons.
+1. Cold launch: no app-open ad.
+2. Send the app to the background and return: app-open ad appears at most once per 4 minutes, never on the camera screen.
+3. Scan, crop, multi-page, filter-free export, share, and PDF viewer all work on a **release** build.
+4. OCR, ID-card removal, and the banner, interstitial, and rewarded ads still behave as before.
+5. Rate-us prompt appears only after the 3rd export, and not again within 90 days.
+6. Light, dark, and system themes all look correct on every screen, with no unreadable text.
+7. Gallery import still opens the system Photo Picker and returns the image.
+8. No crash on launch in the release build. If there is one, send me the logcat.

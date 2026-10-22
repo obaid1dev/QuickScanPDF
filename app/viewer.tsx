@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,12 +29,138 @@ import OcrFlowView from '@/components/OcrFlowView';
 import { useInterstitialAd } from '@/hooks/useInterstitialAd';
 import { useInterstitialOnBack } from '@/hooks/useInterstitialOnBack';
 import { useOcrFlow } from '@/hooks/useOcrFlow';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { ADS_ENABLED, AD_UNIT_IDS } from '@/constants/config';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import {
+  cardShadow,
+  radii,
+  spacing,
+  typography,
+  type Palette,
+} from '@/constants/theme';
 import { savePdfToDevice } from '@/lib/fileManager';
 import type { Document } from '@/types/document';
 
+const makeStyles = (colors: Palette, shade: 'light' | 'dark') =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    headerSafe: {
+      backgroundColor: colors.surface,
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    headerBody: {
+      flex: 1,
+      marginHorizontal: spacing.sm,
+    },
+    headerTitle: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      fontSize: 16,
+    },
+    headerMeta: {
+      ...typography.badge,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    roundBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.surfaceLighter,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerActions: {
+      flexDirection: 'row',
+      columnGap: spacing.sm,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: spacing.lg,
+      paddingBottom: spacing.xl * 2,
+    },
+    pageCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      boxShadow: cardShadow[shade],
+    },
+    pageImage: {
+      width: '100%',
+      aspectRatio: 1 / 1.414,
+      backgroundColor: colors.surface,
+    },
+    pageBadge: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      backgroundColor: colors.scrim,
+      borderRadius: radii.round,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    pageBadgeText: {
+      color: colors.onScrim,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+      backgroundColor: colors.background,
+    },
+    emptyTitle: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      marginTop: spacing.md,
+    },
+    emptyText: {
+      ...typography.secondary,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+    },
+    primaryBtn: {
+      marginTop: spacing.lg,
+      backgroundColor: colors.primary,
+      borderRadius: 999,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: 12,
+    },
+    primaryBtnText: {
+      color: colors.onPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    adSlot: {
+      backgroundColor: colors.background,
+      paddingTop: spacing.sm,
+    },
+  });
+
 export default function ViewDocumentScreen() {
+  const { colors, resolved } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors, resolved), [colors, resolved]);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = typeof params.id === 'string' ? params.id : '';
@@ -158,7 +290,7 @@ export default function ViewDocumentScreen() {
         </Text>
         <Pressable
           onPress={() => router.back()}
-          style={styles.primaryBtn}
+          style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
         >
           <Text style={styles.primaryBtnText}>Go Back</Text>
         </Pressable>
@@ -219,11 +351,6 @@ export default function ViewDocumentScreen() {
       </View>
     </SafeAreaView>
 
-    {doc && ADS_ENABLED && pages.length > 0 ? (
-      <SafeAreaView edges={['bottom']} style={styles.adSlot}>
-        <AdBanner unitId={AD_UNIT_IDS.viewerBanner} />
-      </SafeAreaView>
-    ) : null}
     <OcrFlowView flow={ocr} />
 
       {pages.length > 0 ? (
@@ -258,7 +385,7 @@ export default function ViewDocumentScreen() {
           <Text style={styles.emptyText}>
             Page previews are not available for this scan.
           </Text>
-          <Pressable onPress={shareDoc} style={styles.primaryBtn}>
+          <Pressable onPress={shareDoc} style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
             <Text style={styles.primaryBtnText}>Share PDF</Text>
           </Pressable>
         </View>
@@ -269,122 +396,6 @@ export default function ViewDocumentScreen() {
           <AdBanner unitId={AD_UNIT_IDS.viewerBanner} />
         </SafeAreaView>
       ) : null}
-      <OcrFlowView flow={ocr} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  headerSafe: {
-    backgroundColor: colors.surface,
-    borderBottomColor: colors.secondary,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  headerBody: {
-    flex: 1,
-    marginHorizontal: spacing.sm,
-  },
-  headerTitle: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  headerMeta: {
-    ...typography.badge,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  roundBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceLighter,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    columnGap: spacing.sm,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xl * 2,
-  },
-  pageCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    marginBottom: spacing.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.secondary,
-  },
-  pageImage: {
-    width: '100%',
-    aspectRatio: 1 / 1.414,
-    backgroundColor: '#ffffff',
-  },
-  pageBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(9, 9, 11, 0.7)',
-    borderRadius: radii.round,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  pageBadgeText: {
-    color: colors.white,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    backgroundColor: colors.background,
-  },
-  emptyTitle: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    marginTop: spacing.md,
-  },
-  emptyText: {
-    ...typography.secondary,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  primaryBtn: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: 12,
-  },
-  primaryBtnText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  adSlot: {
-    backgroundColor: colors.background,
-    paddingTop: spacing.sm,
-  },
-});

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,8 +22,10 @@ import FAB from '@/components/FAB';
 import AdBanner from '@/components/AdBanner';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useScanSession } from '@/hooks/useScanSession';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { savePdfToDevice } from '@/lib/fileManager';
-import { colors, spacing, typography } from '@/constants/theme';
+import { maybeRequestRateUs } from '@/lib/rateUs';
+import { spacing, typography, type Palette } from '@/constants/theme';
 import type { Document } from '@/types/document';
 
 // DocumentCard row height is fixed: 64px thumbnail + 24px vertical padding
@@ -35,7 +37,71 @@ const getItemLayout = (
   index: number,
 ) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index });
 
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safe: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.lg,
+    },
+    title: {
+      ...typography.screenTitle,
+      color: colors.textPrimary,
+    },
+    subtitle: {
+      ...typography.secondary,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    gear: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    gearPressed: {
+      transform: [{ scale: 0.94 }],
+      opacity: 0.7,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    listContent: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xs,
+      paddingBottom: 120,
+    },
+    emptyContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingBottom: 80,
+    },
+    adSlot: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 96,
+      alignItems: 'center',
+    },
+  });
+
 export default function HomeScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const {
     documents,
@@ -55,6 +121,9 @@ export default function HomeScreen() {
       const task = InteractionManager.runAfterInteractions(() => {
         refresh().catch(() => undefined);
       });
+      // Rate-us (in-app review): checked once per focus, after the user has
+      // exported a few PDFs. All gates and error absorption live in rateUs.ts.
+      maybeRequestRateUs();
       return () => task.cancel();
     }, [refresh]),
   );
@@ -208,63 +277,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  safe: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  title: {
-    ...typography.screenTitle,
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    ...typography.secondary,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  gear: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gearPressed: {
-    opacity: 0.7,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    paddingBottom: 120,
-  },
-  emptyContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingBottom: 80,
-  },
-  adSlot: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 96,
-    alignItems: 'center',
-  },
-});

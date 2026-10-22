@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,10 +13,145 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useScanSession } from '@/hooks/useScanSession';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { normalizeToJpeg } from '@/lib/imageProcessing';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { radii, spacing, typography, type Palette } from '@/constants/theme';
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    topBar: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+    },
+    iconBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconBtnPressed: {
+      transform: [{ scale: 0.94 }],
+      opacity: 0.8,
+    },
+    hero: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      rowGap: spacing.md,
+    },
+    heroIcon: {
+      width: 96,
+      height: 96,
+      borderRadius: radii.lg,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    title: {
+      ...typography.screenTitle,
+      color: colors.textPrimary,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      maxWidth: 340,
+    },
+    bottomArea: {
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.lg,
+      rowGap: spacing.md,
+    },
+    sessionCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      columnGap: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    sessionCardPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.985 }],
+    },
+    sessionIcon: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      columnGap: 6,
+      backgroundColor: colors.surfaceLighter,
+      borderRadius: radii.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 6,
+    },
+    sessionCount: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    sessionTextWrap: {
+      flex: 1,
+      rowGap: 2,
+    },
+    sessionTitle: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+    },
+    sessionSub: {
+      ...typography.badge,
+      color: colors.textSecondary,
+    },
+    scanBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      columnGap: 8,
+      backgroundColor: colors.primary,
+      borderRadius: radii.round,
+      paddingVertical: 16,
+    },
+    scanBtnPressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.97 }],
+    },
+    scanBtnText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    galleryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      columnGap: 8,
+      backgroundColor: colors.surface,
+      borderRadius: radii.round,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    galleryBtnPressed: {
+      opacity: 0.85,
+    },
+    galleryBtnText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+  });
 
 export default function CameraScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { pages, isActive, addPage, clearSession } = useScanSession();
   const [scanning, setScanning] = useState(false);
@@ -114,7 +249,7 @@ export default function CameraScreen() {
           style={styles.iconBtn}
           accessibilityLabel="Back"
         >
-          <Ionicons name="chevron-back" size={26} color={colors.white} />
+          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </Pressable>
       </SafeAreaView>
 
@@ -142,7 +277,7 @@ export default function CameraScreen() {
               <Ionicons
                 name="document-text-outline"
                 size={22}
-                color={colors.white}
+                color={colors.textPrimary}
               />
               <Text style={styles.sessionCount}>{pages.length}</Text>
             </View>
@@ -170,10 +305,10 @@ export default function CameraScreen() {
           accessibilityLabel="Start Scanning"
         >
           {scanning ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <>
-              <Ionicons name="camera" size={22} color={colors.white} />
+              <Ionicons name="camera" size={22} color={colors.onPrimary} />
               <Text style={styles.scanBtnText}>Start Scanning</Text>
             </>
           )}
@@ -198,126 +333,3 @@ export default function CameraScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  topBar: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hero: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    rowGap: spacing.md,
-  },
-  heroIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: radii.lg,
-    backgroundColor: 'rgba(37, 99, 235, 0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  title: {
-    ...typography.screenTitle,
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    ...typography.secondary,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 21,
-    maxWidth: 340,
-  },
-  bottomArea: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.lg,
-    rowGap: spacing.md,
-  },
-  sessionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    columnGap: spacing.md,
-  },
-  sessionCardPressed: {
-    opacity: 0.85,
-  },
-  sessionIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 6,
-    backgroundColor: colors.surfaceLighter,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-  },
-  sessionCount: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  sessionTextWrap: {
-    flex: 1,
-    rowGap: 2,
-  },
-  sessionTitle: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-  },
-  sessionSub: {
-    ...typography.badge,
-    color: colors.textSecondary,
-  },
-  scanBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 8,
-    backgroundColor: colors.primary,
-    borderRadius: radii.round,
-    paddingVertical: 16,
-  },
-  scanBtnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.99 }],
-  },
-  scanBtnText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  galleryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 8,
-    backgroundColor: colors.surface,
-    borderRadius: radii.round,
-    paddingVertical: 14,
-  },
-  galleryBtnPressed: {
-    opacity: 0.85,
-  },
-  galleryBtnText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
   Pressable,
@@ -7,7 +7,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { radii, spacing, typography, type Palette } from '@/constants/theme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -20,6 +21,90 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 360,
+      backgroundColor: colors.surfaceLighter,
+      borderRadius: radii.lg,
+      padding: spacing.xl,
+      alignItems: 'center',
+    },
+    iconWrap: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    iconWrapDanger: {
+      backgroundColor: colors.dangerSoft,
+    },
+    iconWrapNeutral: {
+      backgroundColor: colors.primarySoft,
+    },
+    title: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      fontSize: 17,
+      textAlign: 'center',
+    },
+    message: {
+      ...typography.secondary,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginTop: spacing.sm,
+    },
+    actions: {
+      flexDirection: 'row',
+      columnGap: spacing.sm,
+      marginTop: spacing.xl,
+      width: '100%',
+    },
+    cancelBtn: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      paddingVertical: 12,
+    },
+    cancelLabel: {
+      ...typography.cardTitle,
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    confirmBtn: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+      borderRadius: radii.md,
+      paddingVertical: 12,
+    },
+    confirmBtnDanger: {
+      backgroundColor: colors.danger,
+    },
+    confirmLabel: {
+      ...typography.cardTitle,
+      color: colors.onPrimary,
+      fontSize: 15,
+    },
+    pressed: {
+      opacity: 0.85,
+    },
+  });
+
 export default function ConfirmDialog({
   visible,
   icon = 'trash-outline',
@@ -30,6 +115,9 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <Modal
       visible={visible}
@@ -77,86 +165,3 @@ export default function ConfirmDialog({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: colors.surfaceLighter,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  iconWrapDanger: {
-    backgroundColor: 'rgba(220, 38, 38, 0.12)',
-  },
-  iconWrapNeutral: {
-    backgroundColor: 'rgba(37, 99, 235, 0.14)',
-  },
-  title: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    fontSize: 17,
-    textAlign: 'center',
-  },
-  message: {
-    ...typography.secondary,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: spacing.sm,
-  },
-  actions: {
-    flexDirection: 'row',
-    columnGap: spacing.sm,
-    marginTop: spacing.xl,
-    width: '100%',
-  },
-  cancelBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    paddingVertical: 12,
-  },
-  cancelLabel: {
-    ...typography.cardTitle,
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  confirmBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 12,
-  },
-  confirmBtnDanger: {
-    backgroundColor: colors.danger,
-  },
-  confirmLabel: {
-    ...typography.cardTitle,
-    color: colors.white,
-    fontSize: 15,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-});
