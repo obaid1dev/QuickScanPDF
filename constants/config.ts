@@ -54,12 +54,17 @@ export const OCR_FREE_PER_DAY = 2;
 
 export const STORAGE_KEYS = {
   documents: 'quickscan:documents',
+  folders: 'quickscan:folders',
+  sort: 'quickscan:sort',
   downloadsDir: 'quickscan:downloads_dir',
   exportCount: 'quickscan:exportCount',
   ocrUsage: 'quickscan:ocrUsage',
   theme: 'quickscan:theme',
   rateUsLastRequest: 'quickscan:rateUsLastRequest',
 } as const;
+
+/** Maximum length of a folder name, after trimming spaces. */
+export const FOLDER_NAME_MAX_LENGTH = 40;
 
 /** App-open ad: minimum gap between two app-open impressions. */
 export const APP_OPEN_MIN_INTERVAL_MS = 4 * 60 * 1000;
@@ -74,4 +79,4 @@ export const RATE_US_COOLDOWN_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const SCANS_FOLDER = 'scans';
 
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';

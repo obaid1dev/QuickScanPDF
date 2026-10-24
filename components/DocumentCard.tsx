@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import ActionMenu, { type ActionMenuOption } from '@/components/ActionMenu';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import MoveFolderSheet from '@/components/MoveFolderSheet';
 import {
   cardShadow,
   radii,
@@ -21,7 +22,7 @@ import {
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { formatBytes } from '@/lib/fileManager';
 import { formatRelativeTime } from '@/lib/format';
-import type { Document } from '@/types/document';
+import type { Document, Folder } from '@/types/document';
 
 interface DocumentCardProps {
   document: Document;
@@ -30,6 +31,11 @@ interface DocumentCardProps {
   onShare: (doc: Document) => void;
   onDelete: (id: string) => void;
   onPress?: (doc: Document) => void;
+  /** Folder organisation — when provided, "Move to folder" appears in the menu. */
+  folders?: Folder[];
+  onMove?: (doc: Document, folderId: string | null) => void;
+  /** One-step create (+validate) and move from the move sheet's "New folder" row. */
+  onCreateAndMove?: (doc: Document, name: string) => Promise<'ok' | 'duplicate' | 'invalid' | 'error'>;
 }
 
 const makeStyles = (colors: Palette, shade: 'light' | 'dark') =>
@@ -147,6 +153,9 @@ function DocumentCard({
   onShare,
   onDelete,
   onPress,
+  folders,
+  onMove,
+  onCreateAndMove,
 }: DocumentCardProps) {
   const { colors, resolved } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors, resolved), [colors, resolved]);
@@ -156,7 +165,9 @@ function DocumentCard({
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [renameVisible, setRenameVisible] = useState(false);
   const [renameText, setRenameText] = useState(document.title);
+  const [moveVisible, setMoveVisible] = useState(false);
 
+  const canMove = !!onMove && !!onCreateAndMove;
   const menuOptions: ActionMenuOption[] = [
     {
       icon: 'create-outline',
@@ -166,6 +177,15 @@ function DocumentCard({
         setRenameVisible(true);
       },
     },
+    ...(canMove
+      ? [
+          {
+            icon: 'folder-outline' as const,
+            label: 'Move to folder',
+            onPress: () => setMoveVisible(true),
+          },
+        ]
+      : []),
     {
       icon: 'download-outline',
       label: 'Download',
@@ -243,6 +263,17 @@ function DocumentCard({
         options={menuOptions}
         onClose={() => setMenuVisible(false)}
       />
+
+      {canMove ? (
+        <MoveFolderSheet
+          visible={moveVisible}
+          doc={document}
+          folders={folders ?? []}
+          onMove={(folderId) => onMove?.(document, folderId)}
+          onCreateFolder={(name) => onCreateAndMove?.(document, name) ?? Promise.resolve('error')}
+          onClose={() => setMoveVisible(false)}
+        />
+      ) : null}
 
       <ConfirmDialog
         visible={confirmVisible}

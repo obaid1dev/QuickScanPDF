@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { STORAGE_KEYS } from '@/constants/config';
 import { getItem } from '@/lib/storage';
 import { getImagePixelSize } from '@/lib/imageProcessing';
+import { markDocumentOpened } from '@/lib/activity';
 import AdBanner from '@/components/AdBanner';
 import OcrFlowView from '@/components/OcrFlowView';
 import { useInterstitialAd } from '@/hooks/useInterstitialAd';
@@ -186,6 +187,10 @@ export default function ViewDocumentScreen() {
       }
       setDoc(found);
       setLoading(false);
+      // "Recently opened" bookkeeping — persist only, so no repaint loop.
+      if (found) {
+        void markDocumentOpened(found.id);
+      }
       if (found?.pages?.length) {
         const ratios = await Promise.all(
           found.pages.map(async (uri) => {

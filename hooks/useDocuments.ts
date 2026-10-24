@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Document } from '@/types/document';
+import type { Document, Folder } from '@/types/document';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import {
   deleteAllScansFiles,
@@ -7,9 +7,22 @@ import {
   getTotalScansSizeBytes,
   formatBytes,
 } from '@/lib/fileManager';
+import {
+  isDuplicateFolderName,
+  loadFolders,
+  normalizeFolderName,
+  normalizeFolders,
+  saveFolders,
+} from '@/lib/folders';
+import { markDocumentOpened } from '@/lib/activity';
+
+export type FolderResult =
+  | { status: 'ok'; folder: Folder }
+  | { status: 'duplicate' | 'invalid' | 'error'; folder?: undefined };
 
 export interface UseDocumentsValue {
   documents: Document[];
+  folders: Folder[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -17,7 +30,14 @@ export interface UseDocumentsValue {
   rename: (id: string, title: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
-  totalStorageBytes: number;
+  addFolder: (rawName: string) => Promise<FolderResult>;
+  renameFolder: (id: string, rawName: string) => Promise<FolderResult>;
+  /** Deletes the folder only; its documents move to Unfiled, PDFs untouched. */
+  removeFolder: (id: string) => Promise<void>;
+  /** Moves a document to a folder, or to Unfiled when folderId is null. */
+  moveDocument: (docId: string, folderId: string | null) => Promise<void>;
+  /** Records an open (viewer / share screen) for "Recently opened" sorting. */
+  setLastOpened: (docId: string) => Promise<void>;  totalStorageBytes: number;
   totalStorageLabel: string;
 }
 
@@ -31,13 +51,21 @@ function sortDesc(a: Document, b: Document): number {
  */
 export function useDocuments(): UseDocumentsValue {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalStorageBytes, setTotalStorageBytes] = useState(0);
 
   const load = useCallback(async () => {
-    const list = await getItem<Document[]>(STORAGE_KEYS.documents);
-    setDocuments((list ?? []).sort(sortDesc));
+    // Reads BOTH indexes in one go. Old records with no `folderId` field (or
+    // null) are Unfiled by construction — `isUnfiled` treats the missing
+    // field as Unfiled, so Release-1 data needs no migration whatsoever.
+    const [list, folderList] = await Promise.all([
+      getItem<Document[]>(STORAGE_KEYS.documents),
+      loadFolders(),
+    ]);
+    setDocuments((list ?? []).sort((a, b) => b.createdAt - a.createdAt));
+    setFolders(folderList);
     setTotalStorageBytes(getTotalScansSizeBytes());
     setLoading(false);
   }, []);
@@ -112,8 +140,119 @@ export function useDocuments(): UseDocumentsValue {
     await persist([]);
   }, [persist]);
 
+  /**
+   * Validates and creates a folder. Validation runs against the PERSISTED
+   * folder list (not the in-memory copy) so two hook instances — the Home tab
+   * and a Folder screen — never disagree about duplicates.
+   */
+  const addFolder = useCallback(async (rawName: string): Promise<FolderResult> => {
+    const name = normalizeFolderName(rawName);
+    if (!name) {
+      return { status: 'invalid' };
+    }
+    try {
+      const persisted = await loadFolders();
+      if (isDuplicateFolderName(name, persisted)) {
+        return { status: 'duplicate' };
+      }
+      const folder: Folder = {
+        id: `folder_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        createdAt: Date.now(),
+      };
+      await saveFolders([...persisted, folder]);
+      await load();
+      return { status: 'ok', folder };
+    } catch {
+      return { status: 'error' };
+    }
+  }, [load]);
+
+  const renameFolder = useCallback(
+    async (id: string, rawName: string): Promise<FolderResult> => {
+      const name = normalizeFolderName(rawName);
+      if (!name) {
+        return { status: 'invalid' };
+      }
+      try {
+        const persisted = await loadFolders();
+        if (isDuplicateFolderName(name, persisted, id)) {
+          return { status: 'duplicate' };
+        }
+        const next = persisted.map((f) => (f.id === id ? { ...f, name } : f));
+        await saveFolders(next);
+        await load();
+        return { status: 'ok', folder: next.find((f) => f.id === id)! };
+      } catch {
+        return { status: 'error' };
+      }
+    },
+    [load],
+  );
+
+  /** Removes the folder and re-files its documents to Unfiled. Never touches
+   *  any PDF/thumbnail file — only the two metadata indexes change. */
+  const removeFolder = useCallback(
+    async (id: string): Promise<void> => {
+      try {
+        const [persistedFolders, persistedDocs] = await Promise.all([
+          loadFolders(),
+          getItem<Document[]>(STORAGE_KEYS.documents),
+        ]);
+        await saveFolders(persistedFolders.filter((f) => f.id !== id));
+        await setItem(
+          STORAGE_KEYS.documents,
+          (persistedDocs ?? []).map((d) =>
+            d.folderId === id ? { ...d, folderId: null } : d,
+          ),
+        );
+        await load();
+      } catch {
+        setError('Could not delete the folder.');
+      }
+    },
+    [load],
+  );
+
+  /** Persists the move against the stored index (the in-memory copy may be
+   *  stale when the call comes from another screen's hook instance). */
+  const moveDocument = useCallback(
+    async (docId: string, folderId: string | null): Promise<void> => {
+      try {
+        const persisted = (await getItem<Document[]>(STORAGE_KEYS.documents)) ?? [];
+        // Guard: never point a document at a folder that no longer exists.
+        const target =
+          folderId === null ||
+          normalizeFolders(await getItem(STORAGE_KEYS.folders)).some(
+            (f) => f.id === folderId,
+          );
+        if (!target) {
+          return;
+        }
+        await setItem(
+          STORAGE_KEYS.documents,
+          persisted.map((d) => (d.id === docId ? { ...d, folderId } : d)),
+        );
+        await load();
+      } catch {
+        setError('Could not move the document.');
+      }
+    },
+    [load],
+  );
+
+  /** Persist-only (no list-reload churn): the listing screens refresh on
+   *  focus anyway, which is what keeps "Recently opened" accurate. */
+  const setLastOpened = useCallback(
+    async (docId: string): Promise<void> => {
+      await markDocumentOpened(docId);
+    },
+    [],
+  );
+
   return {
     documents,
+    folders,
     loading,
     error,
     refresh,
@@ -121,6 +260,11 @@ export function useDocuments(): UseDocumentsValue {
     rename,
     remove,
     clearAll,
+    addFolder,
+    renameFolder,
+    removeFolder,
+    moveDocument,
+    setLastOpened,
     totalStorageBytes,
     totalStorageLabel: formatBytes(totalStorageBytes),
   };

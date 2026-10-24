@@ -15,6 +15,8 @@ import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProcessingLoader from '@/components/ProcessingLoader';
 import { useScanSession } from '@/hooks/useScanSession';
+import { markDocumentOpened } from '@/lib/activity';
+
 import { useDocuments } from '@/hooks/useDocuments';
 import { generatePdfFromImages } from '@/lib/pdfGenerator';
 import {
@@ -174,6 +176,8 @@ export default function ShareScreen() {
       };
 
       await create(doc);
+      // The freshly generated scan counts as opened for "Recently opened".
+      await markDocumentOpened(doc.id);
       clearSession();
 
       if (mountedRef.current) {

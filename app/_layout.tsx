@@ -62,6 +62,10 @@ function RootNavigator() {
           name="camera"
           options={{ headerShown: false, animation: 'fade' }}
         />
+        <Stack.Screen
+          name="folder/[id]"
+          options={{ headerShown: false, gestureEnabled: true }}
+        />
         <Stack.Screen name="editor" options={{ title: 'Edit Scan' }} />
         <Stack.Screen name="share" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="viewer" options={{ headerShown: false, gestureEnabled: false }} />
