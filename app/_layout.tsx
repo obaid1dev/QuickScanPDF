@@ -57,14 +57,13 @@ function RootNavigator() {
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="camera"
           options={{ headerShown: false, animation: 'fade' }}
         />
         <Stack.Screen name="editor" options={{ title: 'Edit Scan' }} />
         <Stack.Screen name="share" options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="viewer" options={{ headerShown: false, gestureEnabled: false }} />
       </Stack>
       <AppOpenAdController />

@@ -39,7 +39,10 @@ export type Palette = {
   /** Text/icons sitting on `scrim` — always white. */
   onScrim: string;
   /** Faint accent tint behind icon chips. */
-  primarySoft: string;  /** Faint danger tint behind destructive icon chips. */
+  primarySoft: string;
+  /** Highlight behind the active tab icon — lighter in dark so the accent
+   *  icon stays ≥3:1 on it (dark `primarySoft` is tuned for chips on chips). */
+  accentPill: string;  /** Faint danger tint behind destructive icon chips. */
   dangerSoft: string;
   /** Deep red for small destructive badges over thumbnails. */
   dangerDeep: string;
@@ -64,6 +67,7 @@ export const darkPalette: Palette = {
   scrim: 'rgba(9, 9, 11, 0.72)',
   onScrim: '#FFFFFF',
   primarySoft: 'rgba(37, 99, 235, 0.18)',
+  accentPill: 'rgba(37, 99, 235, 0.10)',
   dangerSoft: 'rgba(220, 38, 38, 0.12)',
   dangerDeep: '#B91C1C',
   backdrop: 'rgba(0, 0, 0, 0.55)',
@@ -90,6 +94,7 @@ export const lightPalette: Palette = {
   scrim: 'rgba(9, 9, 11, 0.72)',
   onScrim: '#FFFFFF',
   primarySoft: 'rgba(37, 99, 235, 0.08)',
+  accentPill: 'rgba(37, 99, 235, 0.08)',
   dangerSoft: 'rgba(220, 38, 38, 0.10)',
   dangerDeep: '#B91C1C',
   backdrop: 'rgba(0, 0, 0, 0.55)',

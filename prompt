@@ -1,122 +1,172 @@
-Use the design skills listed in AGENTS.md for this UI work.
+# Release 2 — OpenCode Prompt
+
+Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow it.
+
+Run this only after Release 1 (versionCode 12, version 1.0.5) is approved and live.
+
 ---
 
 ## SCOPE
 
-Implement four changes plus one build-quality fix in QuickScan PDF:
+Build three things:
 
-1. Rate-us popup
-2. App-open ad
-3. UI polish
-4. Light theme (with the existing dark theme kept)
-5. Enable R8 code shrinking and obfuscation for release builds
+1. **Folders:** create, rename, delete, and move documents between folders.
+2. **Sorting:** sort the document list by Newest, Oldest, Name A–Z, Size, and Recently opened.
+3. **Bottom navigation bar:** three tabs, Home, Tools, and Settings. The Tools tab is a "Coming soon" placeholder only.
 
-Do NOT change: the native scanner and its auto-crop, PDF generation layout, gallery import through the system Photo Picker, `blockedPermissions`, the AdMob banner, interstitial, or rewarded setup, the consent flow, the immersive status and nav bar behavior, the app icon, or the portrait orientation lock (kept on purpose). Do NOT upgrade Expo, React Native, or any Google library. Do NOT attempt the deprecated edge-to-edge or large-screen warnings.
+Do NOT build any tools (no signature, add page, remove page, or merge). The Tools screen shows a clear "Coming soon" message and nothing else.
 
-Bump the version and push to GitHub. **Do NOT run `eas build` or `eas submit`.**
+Do NOT change: the native scanner, auto-crop, PDF generation layout, gallery import through the Photo Picker, `blockedPermissions`, the ad units or consent flow, the portrait lock, the immersive status bar, the app icon, or the light and dark themes except where a new screen needs theme tokens.
+
+Do NOT add any new Android permissions.
+
+Do NOT upgrade Expo, React Native, or any library unless the task explicitly needs a new package. If a new package is needed, use `npx expo install`, and report it.
+
+Bump the version, push to GitHub. **Do NOT run `eas build` or `eas submit`.**
 
 ---
 
-## 1. RATE-US POPUP
+## 1. DATA MODEL AND STORAGE (do this first)
 
-- Install `expo-store-review` with `npx expo install expo-store-review`.
-- Reuse the existing successful-export counter. If none exists, add one in local storage (key `quickscan:exportCount`).
-- Show the rating request once, after the **3rd** successful export, when the user returns to the Dashboard.
-- Call `StoreReview.isAvailableAsync()` first. If it's true, call `StoreReview.requestReview()`.
-- Store a timestamp of the last request. Never request again within 90 days, even if the user exports more.
-- Never show the rating request on the same screen as an ad, or on the camera, editor, or share-processing screens.
-- Do not add a custom "Rate us" dialog that pressures the user, and do not offer anything in exchange for a rating.
-- Make sure a failure here never affects export, navigation, or ads.
+- Add an optional `folderId` field to the saved document record. Existing documents have no `folderId`, so treat a missing or null value as **Unfiled** (the root). Don't migrate or rewrite existing saved records.
+- Add an optional `lastOpenedAt` timestamp, also treated as missing when absent.
+- Store folders as a list in local storage under a new key (for example `quickscan:folders`). Each folder has `id`, `name`, and `createdAt`.
+- Handle every missing or unknown field gracefully. Never crash on an old record.
+- Add tests or runtime checks that load a document saved by Release 1 (no `folderId`, no `lastOpenedAt`) and confirm it appears under Unfiled.
 
-## 2. APP-OPEN AD
+## 2. FOLDERS
 
-Ad unit IDs (same pattern as the existing `AD_UNIT_IDS` in `constants/config.ts`):
-- Production: `ca-app-pub-1138568424665362/1531561674`
-- Development test (Android): `ca-app-pub-3940256099942544/9257395921`
+**Home screen behavior**
+- At the top of the Home list, show folder cards in a horizontal row or grid, each with the folder name and item count.
+- Below them, show the **Unfiled** documents (documents with no folder).
+- A "+ New folder" card or button opens a small dialog asking for a name. Limit names to 40 characters, trim spaces, and reject empty names and duplicates (case-insensitive).
+- Tapping a folder opens a Folder screen with that folder's documents, using the same card component and sort control as Home.
 
-Use the test ID when `__DEV__` is true, and the production ID otherwise.
+**Folder screen**
+- Header: folder name, back arrow, and a "..." menu with **Rename**, **Delete folder**.
+- Empty state: "This folder is empty. Move documents here from the Home screen." with a short explanation.
 
-Implement a `useAppOpenAd` hook or small module using the `AppOpenAd` API from `react-native-google-mobile-ads`:
-- **Show only when the app returns from the background** (AppState changes from `background` or `inactive` to `active`). Do NOT show it on a cold launch.
-- **Preload** the next app-open ad as soon as one is shown or fails to load.
-- **Cooldown:** at least 4 minutes between app-open ads.
-- **Never show it** while the user is on the Camera, Editor, or Share screens, during PDF generation, right after an interstitial closed (wait 30 seconds), or right after the rewarded ad.
-- If no ad is loaded or it fails, do nothing. Never block the app or show a loading screen for it.
-- Respect `ADS_ENABLED` and the consent state, exactly like the other ads.
-- Keep the app-open ad off the splash and first screen entirely.
+**Rename**
+- Same rules as creating a folder.
 
-## 3. UI POLISH (refine, don't redesign)
+**Delete folder**
+- Show a confirmation dialog: "Delete this folder? Documents inside will move to Unfiled. Nothing will be deleted."
+- On confirm, set `folderId` to null on every document in that folder, then remove the folder. **Never delete PDFs as part of deleting a folder.**
 
-Keep the existing layout, navigation, and screen structure. Only improve how it looks:
-- Consistent spacing scale (for example 4, 8, 12, 16, 24) across all screens.
-- Consistent type scale: screen titles, card titles, body, and captions. Make the hierarchy clearer.
-- Cards: consistent corner radius (12px), consistent padding, and a subtle shadow or border, so they stand out from the background in both themes.
-- Buttons: consistent heights and pressed states. Primary action uses the accent blue `#2563EB` in both themes.
-- Empty states and the Settings screen: tidy alignment and spacing.
-- Make sure no text is cut off on small phones (for example 360dp wide).
+**Move a document**
+- Add a "Move to folder" option to the existing document card menu (the "..." or long-press menu).
+- Show a list: each folder, plus "Unfiled". Include a "New folder" option at the bottom that creates a folder and moves the document into it in one step.
+- Moving a document only updates its `folderId`. The PDF file itself doesn't move.
 
-## 4. LIGHT THEME (alongside the dark theme)
+**Rules**
+- A document is in one folder at most.
+- Renaming or moving a document must not change its PDF file path or thumbnail.
+- Folder changes must refresh the Home list and the document count immediately.
 
-- Put every color in a single theme definition with two sets of tokens:
-  - **Dark (current):** background `#09090B`, surface `#18181B`, raised surface `#27272A`, border `#3F3F46`, text `#FAFAFA`, muted text `#A1A1AA`.
-  - **Light (new):** background `#F7F3EC` (warm cream), surface `#FFFFFF`, raised surface `#F1EDE4`, border `#E4DED2`, text `#09090B`, muted text `#8A857B`.
-  - Accent `#2563EB` is the same in both.
-- Add a theme setting in Settings with three options: **System**, **Light**, **Dark**. Default to **System**. Save the choice in local storage.
-- Use one hook (for example `useAppTheme`) that all screens read from. Do not hard-code colors in individual screens.
-- Status bar stays hidden everywhere, as before. Only the Android navigation bar color should follow the theme, using the existing `expo-navigation-bar` setup.
-- The document preview and scan thumbnails must still look correct on a light background (add a soft border so white pages don't blend into the cream background).
-- The scanner's own camera UI is native and unchanged by the theme.
-- Check every screen in both themes: Dashboard, Camera, Editor, Share, PDF viewer, Settings, and the empty states.
+## 3. SORTING
 
-## 5. R8 CODE SHRINKING AND OBFUSCATION (release builds only)
+- Add one sort control on the Home list and on the Folder screen. Use a compact dropdown or segmented control, not a long menu.
+- Options:
+  - **Newest** (by `createdAt`, newest first). This is the default.
+  - **Oldest** (by `createdAt`, oldest first)
+  - **Name A–Z** (case-insensitive)
+  - **Size** (by `fileSizeBytes`, largest first)
+  - **Recently opened** (by `lastOpenedAt`, most recent first; documents never opened sort after the opened ones, by Newest)
+- Save the chosen sort in local storage, so it stays after the app restarts.
+- When a document is opened (the PDF viewer or share screen), update its `lastOpenedAt`.
+- Keep sorting in a single pure function that's easy to test, not spread across screens.
+- Don't re-sort on every render. Use `useMemo` keyed on the list and the sort option.
 
-- Install `expo-build-properties` with `npx expo install expo-build-properties` (if it's not already installed).
-- In `app.json`, add or update the plugin config:
-  ```json
-  [
-    "expo-build-properties",
-    {
-      "android": {
-        "enableProguardInReleaseBuilds": true,
-        "enableShrinkResourcesInReleaseBuilds": true
-      }
-    }
-  ]
-  ```
-- Keep any existing plugin entries (AdMob, the document scanner, the image picker, and so on) unchanged.
-- Do NOT enable these for development builds. They only apply to release builds.
-- R8 can strip code that native libraries load by name. Do not guess at rules. If a production build crashes at launch or during scanning, ads, or OCR, report the exact crash log. The fix will be a targeted `proguard-rules.pro` keep rule, added only for the library that breaks.
+## 4. BOTTOM NAVIGATION BAR
 
-## 6. VERIFICATION BEFORE PUSH
+- Use Expo Router tabs or a custom bottom bar, whichever fits the existing `app/_layout.tsx` with the least disruption. Keep the existing Expo Router routes working.
+- **Three tabs:**
+  - **Home:** the Dashboard, including folders and sorting. The FAB stays on Home.
+  - **Tools:** a single "Coming soon" screen with a short message, such as "PDF tools are on the way." No buttons that do anything.
+  - **Settings:** the existing Settings screen. Remove the gear icon from the Home header, since Settings is now a tab. Keep the header otherwise unchanged.
+- The bar must sit above the Android gesture area. Use the safe-area bottom inset, so it's never covered by the system navigation pill or gestures.
+- Respect the immersive setup: the status bar stays hidden, and the navigation bar behavior is unchanged.
+- **Hide the bottom bar** on the Camera, Editor, Share (processing and success), and PDF viewer screens. Those are full-screen flows and must not show tabs.
+- The bottom bar uses the theme tokens, works in light and dark, and shows the active tab clearly with the accent blue `#2563EB`.
 
-- Run `npx tsc --noEmit` and fix every error.
-- Run the linter if one is configured.
-- Confirm the app-open ad, the rate-us popup, and the theme setting don't add any new Android permissions. Run `npx expo prebuild` locally, read the generated manifest, delete the generated `android/` folder, and revert any `package.json` script edits it makes (the same check used before).
+## 5. AD LAYOUT (must not break)
 
-## 7. VERSION AND GIT
+- The Dashboard banner currently sits above the FAB. With the bottom bar added, move the banner and the FAB up so neither overlaps the tabs, the document list, or the folder cards.
+- The banner must still render nothing if it fails to load, and must not shift the layout when it loads.
+- **Folder navigation does not count as "returning home".** The back-to-home interstitial still shows only when the user lands on the Home tab from the PDF viewer or Share screen, the same as before. Do not show an interstitial when moving between a folder and the Home root, or between tabs.
+- The app-open ad rules from Release 1 still apply (background return only, 4-minute cooldown, never on camera, editor, or share-processing screens).
 
-- Read the current `expo.android.versionCode` in `app.json` and increase it by 1. It must be higher than the version currently in review.
-- Bump `expo.version` to the next patch version, and keep `APP_VERSION` in `constants/config.ts` in sync so Settings shows it.
-- Commit with a clear message, for example `"Release 1: rate-us popup, app-open ad, UI polish, light theme, R8"`, and push to GitHub.
+## 6. SETTINGS UPDATES
+
+- Settings is now a tab, so make sure its back behavior is correct (it shouldn't leave the user stuck on a screen with no way back to Home).
+- No new settings are required in this release.
+
+## 7. TESTING REQUIREMENTS (run in a development build, not Expo Go)
+
+1. Existing documents from Release 1 still appear under Unfiled, with no crash.
+2. Create, rename, and delete a folder. Confirm deleting a folder moves its documents to Unfiled and deletes no PDF files.
+3. Move a document into a folder and back to Unfiled. Confirm the PDF still opens and shares.
+4. Create a folder from inside the "Move to folder" dialog.
+5. Each sort option orders documents correctly, and the choice persists after an app restart.
+6. "Recently opened" updates when a document is opened.
+7. The bottom bar appears on Home, Tools, and Settings, and is hidden on Camera, Editor, Share, and PDF viewer.
+8. Tabs sit above the gesture area and don't overlap content on a small phone.
+9. The Dashboard banner and FAB don't overlap the tabs or cards, in both light and dark themes.
+10. The Tools tab shows "Coming soon" and nothing else.
+11. Scan, crop, PDF export, share, and gallery import still work.
+12. Interstitial shows only on returning to Home from the viewer or Share screen, not when moving between folders or tabs.
+
+## 8. VERSION AND GIT
+
+- Read `expo.android.versionCode` in `app.json` and increase it by 1. It must be higher than the release under review.
+- Bump `expo.version` to the next minor version (for example 1.1.0), since this adds features. Keep `APP_VERSION` in `constants/config.ts` in sync.
+- Run `npx tsc --noEmit` and fix all errors.
+- Run `npx expo prebuild` locally, read the generated `AndroidManifest.xml`, and confirm no permissions were added. Then delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
+- Commit with a clear message, for example `"Release 2: folders, sorting, bottom nav bar"`, and push to GitHub.
 - **Stop there. Do NOT run `eas build` or `eas submit`.**
+
+## 9. R8 OPTIMIZATION (include in this release)
+
+Google Play Console reports these issues for release 11 (1.0.5):
+
+- "Optimization isn't enabled"
+- "Optimized resource shrinking isn't enabled"
+- "Upgrade your Android Gradle plugin to version 9.0 or higher" (do NOT act on this one in this task)
+
+Shrinking and obfuscation are on through `expo-build-properties` (`enableProguardInReleaseBuilds` and `enableShrinkResourcesInReleaseBuilds`), but full optimization is not being applied to the release build. This lowers the code-quality score.
+
+**Task:** find out why full optimization isn't applied to release builds, and make the smallest change that enables it.
+
+**Steps**
+1. Read `app.json` and confirm the `expo-build-properties` settings for `android.enableProguardInReleaseBuilds` and `android.enableShrinkResourcesInReleaseBuilds` are `true`.
+2. Check how `expo-build-properties` writes the release build settings. Confirm whether the generated Gradle config enables R8 with the optimized default rules file, or only with the basic one. Check the installed package's source and documentation before deciding.
+3. If `expo-build-properties` does not expose an option for full R8 optimization, do NOT upgrade the Android Gradle plugin. Instead, report the exact limitation and propose the options with their risks:
+   - a config plugin that sets the missing Gradle option directly, or
+   - leaving it until the planned Android Gradle plugin upgrade.
+   Stop and ask me before changing anything in that case. The rest of Release 2 can still proceed without the R8 change.
+4. If a config change is possible without a plugin upgrade, make it and keep it minimal.
+5. Do NOT upgrade Expo, React Native, the Android Gradle plugin, or any Google/AdMob library.
+6. Do NOT change any ad, scanner, permission (`blockedPermissions`), orientation, or immersive status/nav bar setting.
+
+**R8 verification**
+1. Run `npx expo prebuild` locally. Read the generated release build settings and confirm the optimization and resource-shrinking options are set.
+2. Read the generated `AndroidManifest.xml` and confirm no permissions were added.
+3. Delete the generated `android/` folder and revert any `package.json` script edits prebuild makes. A leftover `android/` folder makes EAS build the local folder instead of regenerating from config.
+
+**R8 release testing (owner, after the build)**
+- Play Console Code quality: Obfuscation rises and the R8 warnings clear.
+- If the app crashes at launch, or during scanning, ads, or OCR, send the logcat before changing anything else. R8 is the most likely cause of silent crashes in this release, so test it on a release build before uploading.
 
 ## DELIVERABLE
 
-Summarize:
-- Files changed or added, grouped by the five items above
-- Confirmation that `npx tsc --noEmit` passes
-- Confirmation that the prebuild manifest check found no new permissions
-- The new versionCode and version
-- Confirmation the push succeeded
-- Anything you could not verify without a device or release build (list it clearly, so I know what to test)
-
-## RELEASE TESTING CHECKLIST (for the owner, after the build)
-
-1. Cold launch: no app-open ad.
-2. Send the app to the background and return: app-open ad appears at most once per 4 minutes, never on the camera screen.
-3. Scan, crop, multi-page, filter-free export, share, and PDF viewer all work on a **release** build.
-4. OCR, ID-card removal, and the banner, interstitial, and rewarded ads still behave as before.
-5. Rate-us prompt appears only after the 3rd export, and not again within 90 days.
-6. Light, dark, and system themes all look correct on every screen, with no unreadable text.
-7. Gallery import still opens the system Photo Picker and returns the image.
-8. No crash on launch in the release build. If there is one, send me the logcat.
+Report:
+- Files changed or added, grouped by folders, sorting, nav bar, ads layout, settings, and R8
+- The exact R8 setting you changed, or the limitation you found if no change was possible
+- The R8 prebuild results (optimization and shrinking options, permissions check)
+- The data model change, and how old documents are handled
+- Result of `npx tsc --noEmit`
+- Prebuild manifest check result
+- New versionCode and version
+- Commit message and confirmation of the push
+- Anything you could not verify without a device, listed clearly
+- Anything you noticed but didn't change

@@ -12,14 +12,14 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DocumentCard from '@/components/DocumentCard';
 import EmptyState from '@/components/EmptyState';
 import FAB from '@/components/FAB';
 import AdBanner from '@/components/AdBanner';
+import { TAB_BAR_ROW_HEIGHT } from '@/components/TabBar';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useScanSession } from '@/hooks/useScanSession';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -63,18 +63,6 @@ const makeStyles = (colors: Palette) =>
       color: colors.textSecondary,
       marginTop: 4,
     },
-    gear: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    gearPressed: {
-      transform: [{ scale: 0.94 }],
-      opacity: 0.7,
-    },
     centered: {
       flex: 1,
       alignItems: 'center',
@@ -83,18 +71,17 @@ const makeStyles = (colors: Palette) =>
     listContent: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.xs,
-      paddingBottom: 120,
+      paddingBottom: 184,
     },
     emptyContent: {
       flexGrow: 1,
       justifyContent: 'center',
-      paddingBottom: 80,
+      paddingBottom: 120,
     },
     adSlot: {
       position: 'absolute',
       left: 0,
       right: 0,
-      bottom: 96,
       alignItems: 'center',
     },
   });
@@ -103,6 +90,7 @@ export default function HomeScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     documents,
     loading,
@@ -113,6 +101,9 @@ export default function HomeScreen() {
   } = useDocuments();
   const { isActive, clearSession } = useScanSession();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Everything that floats near the bottom edge sits above the tab bar.
+  const barOffset = TAB_BAR_ROW_HEIGHT + Math.max(insets.bottom, 0);
 
   useFocusEffect(
     useCallback(() => {
@@ -214,14 +205,6 @@ export default function HomeScreen() {
             <Text style={styles.title}>QuickScan PDF</Text>
             <Text style={styles.subtitle}>{totalStorageLabel} used on device</Text>
           </View>
-          <Pressable
-            hitSlop={8}
-            accessibilityLabel="Settings"
-            onPress={() => router.push('/settings')}
-            style={({ pressed }) => [styles.gear, pressed && styles.gearPressed]}
-          >
-            <Ionicons name="settings-outline" size={22} color={colors.textPrimary} />
-          </Pressable>
         </View>
 
         {loading ? (
@@ -270,10 +253,10 @@ export default function HomeScreen() {
         )}
       </SafeAreaView>
 
-      <View style={styles.adSlot}>
+      <View style={[styles.adSlot, { bottom: barOffset + 32 }]}>
         <AdBanner />
       </View>
-      <FAB onPress={startNewScan} />
+      <FAB onPress={startNewScan} bottom={barOffset + 28} />
     </View>
   );
 }

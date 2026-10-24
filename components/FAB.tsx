@@ -8,6 +8,9 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 interface FABProps {
   onPress: () => void;
   icon?: keyof typeof Ionicons.glyphMap;
+  /** Distance from screen bottom. Defaults to 28; the Home tab passes a
+   *  value that clears the tab bar. */
+  bottom?: number;
 }
 
 const makeStyles = (colors: Palette) =>
@@ -15,7 +18,6 @@ const makeStyles = (colors: Palette) =>
     fab: {
       position: 'absolute',
       right: 20,
-      bottom: 28,
       width: 64,
       height: 64,
       borderRadius: 32,
@@ -34,7 +36,7 @@ const makeStyles = (colors: Palette) =>
     },
   });
 
-export default function FAB({ onPress, icon = 'camera' }: FABProps) {
+export default function FAB({ onPress, icon = 'camera', bottom }: FABProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -50,6 +52,7 @@ export default function FAB({ onPress, icon = 'camera' }: FABProps) {
       onPress={handlePress}
       style={({ pressed }) => [
         styles.fab,
+        { bottom: bottom ?? 28 },
         pressed && styles.fabPressed,
       ]}
     >
