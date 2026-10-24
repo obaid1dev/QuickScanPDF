@@ -128,7 +128,7 @@ export default function OcrSheet({ state, onClose }: OcrSheetProps) {
           {state.status === 'loading' ? (
             <View style={styles.centered}>
               <ActivityIndicator color={colors.primary} size="large" />
-              <Text style={styles.statusText}>Reading text…</Text>
+              <Text style={styles.statusText}>Reading text...</Text>
             </View>
           ) : state.status === 'error' ? (
             <View style={styles.centered}>

@@ -167,7 +167,7 @@ export default function SettingsScreen() {
             <View style={styles.rowBody}>
               <Text style={styles.rowTitle}>Theme</Text>
               <Text style={styles.rowSub}>
-                Light or dark — your choice is remembered.
+                Light or dark - your choice is remembered.
               </Text>
             </View>
           </View>
@@ -217,7 +217,7 @@ export default function SettingsScreen() {
             <View style={styles.rowBody}>
               <Text style={styles.rowTitleDanger}>Clear all scans</Text>
               <Text style={styles.rowSub}>
-                Deletes {documents.length} scan{documents.length === 1 ? '' : 's'} •{' '}
+                Deletes {documents.length} scan{documents.length === 1 ? '' : 's'} -{' '}
                 {totalStorageBytes > 0 ? totalStorageLabel : '0 KB'}
               </Text>
             </View>
@@ -230,7 +230,7 @@ export default function SettingsScreen() {
               ]}
             >
               <Text style={styles.dangerBtnText}>
-                {clearing ? '…' : 'Clear'}
+                {clearing ? '...' : 'Clear'}
               </Text>
             </Pressable>
           </View>
@@ -259,7 +259,7 @@ export default function SettingsScreen() {
               <Text style={styles.rowSub}>
                 {ADS_ENABLED
                   ? 'Ad-supported (banner, viewer banner, interstitial and optional rewarded ads)'
-                  : 'Ad-free — no third-party trackers.'}
+                  : 'Ad-free - no third-party trackers.'}
               </Text>
             </View>
           </View>
@@ -273,7 +273,7 @@ export default function SettingsScreen() {
               <Text style={styles.rowSub}>
                 QuickScan PDF v{APP_VERSION} is 100% offline. Copy text from scans
                 with on-device text recognition. All scans and documents are stored
-                locally on your device — nothing is uploaded to the cloud.
+                locally on your device - nothing is uploaded to the cloud.
               </Text>
             </View>
           </View>

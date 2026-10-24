@@ -31,11 +31,13 @@ interface DocumentCardProps {
   onShare: (doc: Document) => void;
   onDelete: (id: string) => void;
   onPress?: (doc: Document) => void;
-  /** Folder organisation — when provided, "Move to folder" appears in the menu. */
+  /** Folder organisation - when provided, "Move to folder" appears in the menu. */
   folders?: Folder[];
   onMove?: (doc: Document, folderId: string | null) => void;
   /** One-step create (+validate) and move from the move sheet's "New folder" row. */
   onCreateAndMove?: (doc: Document, name: string) => Promise<'ok' | 'duplicate' | 'invalid' | 'error'>;
+  /** Small muted label under the title (the folder this doc lives in). */
+  folderName?: string;
 }
 
 const makeStyles = (colors: Palette, shade: 'light' | 'dark') =>
@@ -85,6 +87,12 @@ const makeStyles = (colors: Palette, shade: 'light' | 'dark') =>
       ...typography.badge,
       color: colors.textSecondary,
       marginTop: 3,
+    },
+    folderLabel: {
+      ...typography.badge,
+      color: colors.textSecondary,
+      marginTop: 1,
+      fontWeight: '600',
     },
     menuButton: {
       width: 30,
@@ -156,6 +164,7 @@ function DocumentCard({
   folders,
   onMove,
   onCreateAndMove,
+  folderName,
 }: DocumentCardProps) {
   const { colors, resolved } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors, resolved), [colors, resolved]);
@@ -240,9 +249,14 @@ function DocumentCard({
           <Text style={styles.title} numberOfLines={1}>
             {document.title}
           </Text>
+          {folderName ? (
+            <Text style={styles.folderLabel} numberOfLines={1}>
+              {folderName}
+            </Text>
+          ) : null}
           <Text style={styles.meta} numberOfLines={1}>
-            {document.pageCount} page{document.pageCount === 1 ? '' : 's'} •{' '}
-            {formatBytes(document.fileSizeBytes)} •{' '}
+            {document.pageCount} page{document.pageCount === 1 ? '' : 's'} -{' '}
+            {formatBytes(document.fileSizeBytes)} -{' '}
             {formatRelativeTime(document.createdAt)}
           </Text>
         </View>

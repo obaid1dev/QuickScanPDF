@@ -2,21 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
 import type { InterstitialAd as RNGInterstitialAd } from 'react-native-google-mobile-ads';
 import { AD_UNIT_IDS, STORAGE_KEYS } from '@/constants/config';
-import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
+import { describeAdError, getAdsConsentPersonalized, initializeAds, loadAdsModule } from '@/lib/ads';
 import { notifyInterstitialClosed } from '@/lib/adTiming';
 import { getItem, setItem } from '@/lib/storage';
 
 export interface InterstitialController {
   /**
    * Shows the interstitial if one is loaded. When the user closes it,
-   * `onFinished` runs — use this to navigate. Returns `true` if an ad was
+   * `onFinished` runs - use this to navigate. Returns `true` if an ad was
    * actually shown, `false` if nothing was ready (caller should proceed).
    */
   showAdIfReady: (onFinished?: () => void) => boolean;
   isLoaded: boolean;
 }
 
-// NOTE: RNGMA's public package is never statically imported at runtime here —
+// NOTE: RNGMA's public package is never statically imported at runtime here -
 // its native spec modules call `TurboModuleRegistry.getEnforcing` at
 // evaluation time, which crashes Expo Go at bundle start. Only the *type* of
 // `InterstitialAd` is imported (erased at compile time); the live module is
@@ -81,6 +81,8 @@ export function useInterstitialAd(active = true): InterstitialController {
     };
 
     (async () => {
+      // The SDK must be initialized before the request, or it fails silently.
+      await initializeAds();
       const mod = await loadAdsModule();
       if (cancelled || !mod) {
         return;
@@ -97,9 +99,15 @@ export function useInterstitialAd(active = true): InterstitialController {
             setIsLoaded(true);
           }
         }),
-        ad.addAdEventListener(AdEventType.ERROR, () => {
+        ad.addAdEventListener(AdEventType.ERROR, (error) => {
           if (cancelled || adRef.current !== ad) {
             return;
+          }
+          // Full SDK diagnostics: code + message, never swallowed generically.
+          if (__DEV__) {
+            console.log(
+              `[QuickScan] Interstitial load failed: ${describeAdError(error)}`,
+            );
           }
           setIsLoaded(false);
           // Backoff retry: transient no-fills are common on fresh builds.
@@ -161,10 +169,10 @@ export function useInterstitialAd(active = true): InterstitialController {
         });
         return true;
       } catch (e) {
-        // A failed show() must never trap the user on this screen — clear the
+        // A failed show() must never trap the user on this screen - clear the
         // pending callback and report "nothing shown" so the caller proceeds.
         if (__DEV__) {
-          console.log('[QuickScan] Interstitial show() threw — leaving without an ad.', e);
+          console.log('[QuickScan] Interstitial show() threw - leaving without an ad.', e);
         }
         onFinishedRef.current = null;
         return false;

@@ -39,6 +39,22 @@ export async function loadAdsModule(): Promise<
   }
 }
 
+/**
+ * Full SDK diagnostics for load failures: the event payload is typed as a
+ * plain Error, but at runtime it carries the AdMob error `code` (e.g.
+ * "no-fill") and `message`. Read defensively and log everything.
+ */
+export function describeAdError(error: unknown): string {
+  if (error instanceof Error || (error && typeof error === 'object')) {
+    const candidate = error as { code?: unknown; message?: unknown };
+    const message =
+      typeof candidate.message === 'string' ? candidate.message : String(error);
+    const code = typeof candidate.code === 'string' ? candidate.code : 'unknown';
+    return `code=${code} message=${message}`;
+  }
+  return `message=${String(error)}`;
+}
+
 let consentPersonalized = false;
 
 /** Whether the user permitted personalized ads (UMP consent + iOS ATT). */
@@ -50,6 +66,23 @@ export function setAdsConsentPersonalized(value: boolean): void {
   consentPersonalized = value;
 }
 
+let initializedOnce = false;
+let initPromise: Promise<void> | null = null;
+
+/**
+ * Resolves when `initializeAds()` has finished its whole setup chain - after
+ * the Mobile Ads SDK is initialized (or determinately skipped/failed). Ad
+ * requests created before this resolves can fail silently, so every ad
+ * controller (app-open, rewarded, interstitial, banner) awaits this before
+ * its first request.
+ */
+export function whenAdsReady(): Promise<void> {
+  if (!initializedOnce) {
+    void initializeAds();
+  }
+  return initPromise ?? Promise.resolve();
+}
+
 /**
  * App-startup ad setup. Order matters:
  *   1. iOS: request App Tracking Transparency before any Personalized request.
@@ -57,18 +90,31 @@ export function setAdsConsentPersonalized(value: boolean): void {
  *      (EEA / regulated US states).
  *   3. Only then initialize the mobile ads SDK.
  * If the user denies consent/tracking, or anything fails (airplane mode, Expo
- * Go), the app keeps running and requests non-personalized ads instead — it
- * never blocks or hard-errors.
+ * Go), the app keeps running and requests non-personalized ads instead - it
+ * never blocks or hard-errors. Memoized: every caller shares one run.
  */
-export async function initializeAds(): Promise<void> {
+export function initializeAds(): Promise<void> {
+  if (initPromise) {
+    return initPromise;
+  }
+  initializedOnce = true;
+  initPromise = performInitialization();
+  return initPromise;
+}
+
+async function performInitialization(): Promise<void> {
   try {
     const mod = await loadAdsModule();
     if (!mod) {
-      console.log('[QuickScan] Ads: AdMob module unavailable (Expo Go or ads off) — skipping ads.');
+      if (__DEV__) {
+        console.log('[QuickScan] Ads: AdMob module unavailable (Expo Go or ads off) - skipping ads.');
+      }
       return;
     }
     const { AdsConsent, AdsConsentStatus, MobileAds } = mod;
-    console.log('[QuickScan] Ads: AdMob module loaded, initializing SDK…');
+    if (__DEV__) {
+      console.log('[QuickScan] Ads: AdMob module loaded, initializing SDK...');
+    }
 
     if (Platform.OS === 'ios') {
       try {
@@ -95,28 +141,34 @@ export async function initializeAds(): Promise<void> {
         const result = await AdsConsent.showForm();
         personalized = result.status === AdsConsentStatus.OBTAINED;
       } else if (consentInfo.status === AdsConsentStatus.REQUIRED) {
-        // Consent required but no form available — stay non-personalized.
+        // Consent required but no form available - stay non-personalized.
         personalized = false;
       } else {
         // NOT_REQUIRED / OBTAINED without a form: personalized ads are allowed.
         personalized = true;
       }
     } catch {
-      // Consent info unreachable (offline/Expo Go) — assume non-personalized.
+      // Consent info unreachable (offline/Expo Go) - assume non-personalized.
       personalized = false;
     }
     setAdsConsentPersonalized(personalized);
-    console.log(`[QuickScan] Ads: consent personalized=${personalized}`);
+    if (__DEV__) {
+      console.log(`[QuickScan] Ads: consent personalized=${personalized}`);
+    }
 
     try {
       await MobileAds().initialize();
-      console.log('[QuickScan] Ads: SDK initialized.');
+      if (__DEV__) {
+        console.log('[QuickScan] Ads: SDK initialized.');
+      }
     } catch (e) {
-      console.log(
-        `[QuickScan] Ads: SDK init failed — ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      );
+      if (__DEV__) {
+        console.log(
+          `[QuickScan] Ads: SDK init failed - ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
     }
   } catch {
     // Any setup failure must never crash or block the app.

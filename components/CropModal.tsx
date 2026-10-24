@@ -415,7 +415,7 @@ export default function CropModal({
           )}
         </View>
 
-        <Text style={styles.hint}>Drag corners to resize • drag inside to move</Text>
+        <Text style={styles.hint}>Drag corners to resize - drag inside to move</Text>
       </GestureHandlerRootView>
     </Modal>
   );

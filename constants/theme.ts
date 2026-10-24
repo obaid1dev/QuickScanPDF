@@ -4,7 +4,7 @@ import { useColorScheme } from 'react-native';
  * Single source of truth for all visual styling in the app.
  *
  * Every color lives in one of the two palettes below (light/dark). Screens and
- * components never hard-code hex values — they read the resolved theme through
+ * components never hard-code hex values - they read the resolved theme through
  * `useAppTheme()` (hooks/useAppTheme.tsx), so switching the theme re-styles
  * everything from these tokens alone.
  *
@@ -28,7 +28,7 @@ export type Palette = {
   textSecondary: string;
   /** Body-size danger text (icons/graphs can use `danger` directly). */
   dangerText: string;
-  /** Accent blue — identical in both themes. */
+  /** Accent blue - identical in both themes. */
   primary: string;
   /** Text/icons sitting on `primary`. */
   onPrimary: string;
@@ -36,12 +36,12 @@ export type Palette = {
   onDanger: string;
   /** Dark translucent veil laid over scan thumbnails (badges, page numbers). */
   scrim: string;
-  /** Text/icons sitting on `scrim` — always white. */
+  /** Text/icons sitting on `scrim` - always white. */
   onScrim: string;
   /** Faint accent tint behind icon chips. */
   primarySoft: string;
-  /** Highlight behind the active tab icon — lighter in dark so the accent
-   *  icon stays ≥3:1 on it (dark `primarySoft` is tuned for chips on chips). */
+  /** Highlight behind the active tab icon - lighter in dark so the accent
+   *  icon stays >=3:1 on it (dark `primarySoft` is tuned for chips on chips). */
   accentPill: string;  /** Faint danger tint behind destructive icon chips. */
   dangerSoft: string;
   /** Deep red for small destructive badges over thumbnails. */
@@ -81,10 +81,10 @@ export const lightPalette: Palette = {
   border: '#E4DED2',
   textPrimary: '#09090B',
   // Warmed gray, tuned to clear WCAG AA (4.5:1) on surface, surfaceLighter
-  // and background alike (spec value #8A857B measured only 3.1–3.7).
+  // and background alike (spec value #8A857B measured only 3.1-3.7).
   textSecondary: '#6E695F',
   // #EF4444 stays the button fill, but as *text* on warm light surfaces it
-  // measures 3.2–3.8, so small red labels use this darker red. The dark
+  // measures 3.2-3.8, so small red labels use this darker red. The dark
   // theme keeps #EF4444 (5.3:1 on its near-black surfaces).
   dangerText: '#B91C1C',
   primary: '#2563EB',

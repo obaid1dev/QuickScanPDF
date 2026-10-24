@@ -39,7 +39,7 @@ function RootNavigator() {
           (same behavior expo-navigation-bar applies), so a top-edge swipe
           temporarily reveals the clock/battery and it auto-hides again.
           style follows the theme so briefly revealed icons stay readable on
-          either background (light theme → dark icons). */}
+          either background (light theme -> dark icons). */}
       <StatusBar style={resolved === 'light' ? 'dark' : 'light'} hidden />
       {/* Android only: hidden until a bottom-edge swipe temporarily reveals
           it (the system's immersive-sticky behavior). The button style follows
@@ -64,6 +64,10 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="folder/[id]"
+          options={{ headerShown: false, gestureEnabled: true }}
+        />
+        <Stack.Screen
+          name="add-scans"
           options={{ headerShown: false, gestureEnabled: true }}
         />
         <Stack.Screen name="editor" options={{ title: 'Edit Scan' }} />

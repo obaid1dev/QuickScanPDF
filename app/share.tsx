@@ -55,7 +55,7 @@ export default function ShareScreen() {
   const { create } = useDocuments();
 
   const [stage, setStage] = useState<Stage>('generating');
-  const [progress, setProgress] = useState('Generating your PDF…');
+  const [progress, setProgress] = useState('Generating your PDF...');
   const [result, setResult] = useState<ResultInfo | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -67,7 +67,7 @@ export default function ShareScreen() {
     router.replace('/');
   }, [router]);
 
-  // Unified leave path — back arrow AND Android hardware back both flow
+  // Unified leave path - back arrow AND Android hardware back both flow
   // through here, so the interstitial fires on every back-to-home regardless
   // of which one the user triggered. Only armed once generation is done.
   const handleBack = useInterstitialOnBack(
@@ -94,7 +94,7 @@ export default function ShareScreen() {
     }
     attemptRef.current += 1;
     setStage('generating');
-    setProgress('Generating your PDF…');
+    setProgress('Generating your PDF...');
     startedRef.current = true;
 
     try {
@@ -194,7 +194,7 @@ export default function ShareScreen() {
       if (attemptRef.current < 2) {
         if (__DEV__) {
           console.log(
-            `[QuickScan] PDF generation attempt ${attemptRef.current} failed (${e instanceof Error ? e.message : e}); regenerating once…`,
+            `[QuickScan] PDF generation attempt ${attemptRef.current} failed (${e instanceof Error ? e.message : e}); regenerating once...`,
           );
         }
         setTimeout(() => {
@@ -301,7 +301,7 @@ export default function ShareScreen() {
   const goHome = () => {
     void Haptics.selectionAsync();
     // Keep the persisted export counter updated for future analytics, but no
-    // longer use it to gate whether an ad shows — the ad now fires on every
+    // longer use it to gate whether an ad shows - the ad now fires on every
     // back-to-home navigation.
     void incrementExportCount().catch(() => undefined);
     handleBack();
@@ -351,7 +351,7 @@ export default function ShareScreen() {
           <Text style={styles.meta}>
             {doc.pageCount} page{doc.pageCount === 1 ? '' : 's'}
           </Text>
-          <Text style={styles.metaDot}>•</Text>
+          <Text style={styles.metaDot}>-</Text>
           <Text style={styles.meta}>
             {(doc.fileSizeBytes / 1024).toFixed(0)} KB
           </Text>
@@ -386,7 +386,7 @@ export default function ShareScreen() {
         <Text style={styles.helper}>
           {Platform.OS === 'android'
             ? 'Download saves the PDF to Downloads. Share opens the native share sheet.'
-            : 'Share opens the native share sheet — use “Save to Files” to download.'}
+            : 'Share opens the native share sheet - use "Save to Files" to download.'}
         </Text>
         </View>
       </View>

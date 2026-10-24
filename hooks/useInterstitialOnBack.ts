@@ -9,7 +9,7 @@ import type { InterstitialController } from '@/hooks/useInterstitialAd';
  * `handleBack` to both show the interstitial (when one is loaded) and only
  * navigate away afterwards.
  *
- * `active` gates everything — while false (e.g. a PDF is still being
+ * `active` gates everything - while false (e.g. a PDF is still being
  * generated) the hardware back is left to the system so the screen can be
  * exited normally, without an ad.
  */
@@ -29,7 +29,7 @@ export function useInterstitialOnBack(
     if (!active) {
       return false;
     }
-    // Already showing an ad for this leave — swallow the extra press so we
+    // Already showing an ad for this leave - swallow the extra press so we
     // never trigger a second interstitial on top of the first.
     if (busyRef.current) {
       return true;
@@ -41,7 +41,7 @@ export function useInterstitialOnBack(
     }
     if (__DEV__) {
       console.log(
-        '[QuickScan] Interstitial not ready — leaving this screen without an ad.',
+        '[QuickScan] Interstitial not ready - leaving this screen without an ad.',
       );
     }
     leave();

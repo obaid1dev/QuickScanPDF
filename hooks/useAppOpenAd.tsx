@@ -8,7 +8,7 @@ import {
   INTERSTITIAL_QUIET_MS,
   REWARDED_QUIET_MS,
 } from '@/constants/config';
-import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
+import { describeAdError, getAdsConsentPersonalized, initializeAds, loadAdsModule } from '@/lib/ads';
 import {
   msSinceLastInterstitialClosed,
   msSinceLastRewardedClosed,
@@ -18,20 +18,20 @@ const RETRY_BACKOFF_MS = [5000, 12000, 30000];
 
 /**
  * Screens where an app-open ad must never burst in. The ad only ever shows on
- * a background → active transition, so the question is simply: what screen is
+ * a background -> active transition, so the question is simply: what screen is
  * the user coming back to? Camera (scanning), Editor (the work surface) and
  * Share (PDF generation in progress) are all off-limits.
  */
 const SUPPRESSED_ROUTES = ['/camera', '/editor', '/share'];
 
 /**
- * App-open ads, shown strictly on app resume (background → active):
+ * App-open ads, shown strictly on app resume (background -> active):
  *   - never on cold launch,
  *   - at most once per 4 minutes,
  *   - never on the Camera, Editor or Share screens,
  *   - never within 30 s of an interstitial or a rewarded ad finishing,
  *   - never when the SDK is disabled, consent state says so, or nothing is
- *     loaded — a missing ad never blocks or delays the app.
+ *     loaded - a missing ad never blocks or delays the app.
  *
  * Everything else (initialization, listeners, cooldown math) lives here so no
  * screen has to know this ad exists.
@@ -55,6 +55,10 @@ export function useAppOpenAd() {
     };
 
     (async () => {
+      // The SDK must be initialized before ANY request, or the request fails
+      // silently - this was the app-open ad never loading in dev. Every
+      // controller awaits the same memoized setup (consent + SDK init).
+      await initializeAds();
       const mod = await loadAdsModule();
       if (cancelled || !mod) {
         return;
@@ -65,6 +69,9 @@ export function useAppOpenAd() {
         requestNonPersonalizedAdsOnly: !getAdsConsentPersonalized(),
       });
       adRef.current = ad;
+      if (__DEV__) {
+        console.log(`[QuickScan] AppOpen: created, requesting ${AD_UNIT_IDS.appOpen}`);
+      }
 
       const scheduleReload = (delayMs: number) => {
         clearTimers();
@@ -73,6 +80,9 @@ export function useAppOpenAd() {
             InteractionManager.runAfterInteractions(() => {
               if (!cancelled) {
                 try {
+                  if (__DEV__) {
+                    console.log('[QuickScan] AppOpen: loading');
+                  }
                   ad.load();
                 } catch {
                   // Load failures surface as ERROR events; never crash here.
@@ -84,9 +94,15 @@ export function useAppOpenAd() {
       };
 
       const unsubscribers = [
-        ad.addAdEventListener(AdEventType.ERROR, () => {
+        ad.addAdEventListener(AdEventType.ERROR, (error) => {
           if (cancelled) {
             return;
+          }
+          // Full SDK diagnostics: code + message, never swallowed generically.
+          if (__DEV__) {
+            console.log(
+              `[QuickScan] AppOpen load failed: ${describeAdError(error)}`,
+            );
           }
           const attempt = failCountRef.current + 1;
           failCountRef.current = attempt;
@@ -94,12 +110,23 @@ export function useAppOpenAd() {
             scheduleReload(RETRY_BACKOFF_MS[attempt - 1]);
           }
         }),
-        // LOADED: nothing to do — showing is decided by the AppState listener.
+        // LOADED: nothing to do - showing is decided by the AppState listener.
+        ad.addAdEventListener(AdEventType.LOADED, () => {
+          if (__DEV__) {
+            console.log('[QuickScan] AppOpen loaded - ready for the next resume');
+          }
+        }),
         ad.addAdEventListener(AdEventType.OPENED, () => {
+          if (__DEV__) {
+            console.log('[QuickScan] AppOpen shown');
+          }
           showingRef.current = true;
           shownAtRef.current = Date.now();
         }),
         ad.addAdEventListener(AdEventType.CLOSED, () => {
+          if (__DEV__) {
+            console.log('[QuickScan] AppOpen closed - preloading the next one');
+          }
           showingRef.current = false;
           // Immediately start loading the next one so the next resume finds
           // an ad ready.
@@ -160,12 +187,15 @@ export function useAppOpenAd() {
         return;
       }
       try {
-        void ad.show().catch(() => {
+        void ad.show().catch((e) => {
           // A failed show must never block the app; ERROR/CLOSED handlers
           // preloaded the next candidate.
+          if (__DEV__) {
+            console.log(`[QuickScan] AppOpen show() failed: ${e instanceof Error ? e.message : String(e)}`);
+          }
         });
       } catch {
-        // Native layer not ready — skip silently, the next resume retries.
+        // Native layer not ready - skip silently, the next resume retries.
       }
     });
     return () => sub.remove();

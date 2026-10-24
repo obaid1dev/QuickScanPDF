@@ -28,7 +28,7 @@ export async function getOcrUsedToday(): Promise<number> {
 
 /**
  * Consumes one "Extract text" run. Returns the new daily count.
- * Storage failures are swallowed — a quota that cannot be written must never
+ * Storage failures are swallowed - a quota that cannot be written must never
  * stop the user from extracting text.
  */
 export async function recordOcrUse(): Promise<number> {

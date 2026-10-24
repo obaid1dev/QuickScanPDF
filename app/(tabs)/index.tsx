@@ -1,46 +1,79 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
+  ActivityIndicator,
   FlatList,
   InteractionManager,
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import ActionMenu from '@/components/ActionMenu';
+import AdBanner from '@/components/AdBanner';
 import DocumentCard from '@/components/DocumentCard';
 import EmptyState from '@/components/EmptyState';
 import FolderNameDialog from '@/components/FolderNameDialog';
-import FolderStrip from '@/components/FolderStrip';
-import FAB from '@/components/FAB';
-import AdBanner from '@/components/AdBanner';
-import SortBar from '@/components/SortBar';
-import { TAB_BAR_ROW_HEIGHT } from '@/components/TabBar';
+import FolderTileGrid from '@/components/FolderTileGrid';
+import ViewToggle, { type HomeView } from '@/components/ViewToggle';
+import { TAB_BAR_ROW_HEIGHT, CAMERA_BUTTON_RISE } from '@/components/TabBar';
 import { useDocuments, type FolderResult } from '@/hooks/useDocuments';
-import { useScanSession } from '@/hooks/useScanSession';
 import { useSortPreference } from '@/hooks/useSortPreference';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { isInFolder, isUnfiled, sortDocuments } from '@/lib/sorting';
+import { isInFolder, sortDocuments, type SortOption } from '@/lib/sorting';
+import { groupDocumentsByDate } from '@/lib/dateGroups';
+import { consumeFoldersView } from '@/lib/viewHint';
 import { savePdfToDevice } from '@/lib/fileManager';
 import { maybeRequestRateUs } from '@/lib/rateUs';
-import { spacing, typography, type Palette } from '@/constants/theme';
+import {
+  radii,
+  spacing,
+  typography,
+  type Palette,
+} from '@/constants/theme';
 import type { Document } from '@/types/document';
 
-// DocumentCard row height is fixed: 64px thumbnail + 24px vertical padding
-// + 8px margin-bottom. Constant, so FlatList can skip measuring entirely.
+// Row constants for the FlatList: a section header strip and a document card
+// (64px thumbnail + 24px vertical padding + 8px bottom margin).
 const ROW_HEIGHT = 96;
+const HEADER_ROW = 44;
 
-const getItemLayout = (
-  data: ArrayLike<Document> | null | undefined,
-  index: number,
-) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index });
+/**
+ * Fixed ad slot metrics (prompt section 4): the slot sits directly above the
+ * bottom bar with a reserved 50dp height, and must clear the raised camera
+ * button by a 24dp gap: bar top + 18dp rise + 24dp = bar top + 42.
+ */
+const AD_SLOT_HEIGHT = 50;
+const AD_SLOT_GAP_ABOVE_CAMERA = 24;
+const AD_SLOT_BOTTOM = CAMERA_BUTTON_RISE + AD_SLOT_GAP_ABOVE_CAMERA; // 42
+
+interface HeaderRow {
+  kind: 'header';
+  key: string;
+  label: string;
+}
+interface DocRow {
+  kind: 'doc';
+  key: string;
+  doc: Document;
+}
+type ListRow = HeaderRow | DocRow;
+
+const SORT_MENU: Array<{ value: SortOption; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { value: 'newest', label: 'Newest first', icon: 'calendar-outline' },
+  { value: 'oldest', label: 'Oldest first', icon: 'calendar-clear-outline' },
+  { value: 'name', label: 'Name A-Z', icon: 'text-outline' },
+  { value: 'size', label: 'Size (largest first)', icon: 'bar-chart-outline' },
+  { value: 'recent', label: 'Recently opened', icon: 'time-outline' },
+];
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
@@ -57,7 +90,7 @@ const makeStyles = (colors: Palette) =>
       justifyContent: 'space-between',
       paddingHorizontal: spacing.xl,
       paddingTop: spacing.md,
-      paddingBottom: spacing.lg,
+      paddingBottom: spacing.md,
     },
     title: {
       ...typography.screenTitle,
@@ -68,30 +101,74 @@ const makeStyles = (colors: Palette) =>
       color: colors.textSecondary,
       marginTop: 4,
     },
-    sortWrap: {
+    toggleWrap: {
       paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.sm,
+      paddingBottom: spacing.md,
+    },
+    sortRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.xs,
+    },
+    sortBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      columnGap: spacing.xs,
+      backgroundColor: colors.accentPill,
+      borderRadius: radii.round,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+    },
+    sortBtnPressed: {
+      transform: [{ scale: 0.96 }],
+      opacity: 0.9,
+    },
+    sortBtnLabel: {
+      ...typography.badge,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    sectionHeader: {
+      height: HEADER_ROW,
+      justifyContent: 'flex-end',
+      paddingBottom: 6,
+      paddingHorizontal: spacing.xs,
+    },
+    sectionLabel: {
+      ...typography.badge,
+      color: colors.textSecondary,
+      fontWeight: '700',
+      fontSize: 12,
     },
     centered: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    listContent: {
+    listBase: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.xs,
-      paddingBottom: 184,
     },
-    emptyContent: {
+    foldersPad: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xs,
+      paddingBottom: 120,
+    },
+    foldersCentered: {
       flexGrow: 1,
       justifyContent: 'center',
-      paddingBottom: 120,
     },
     adSlot: {
       position: 'absolute',
       left: 0,
       right: 0,
+      height: AD_SLOT_HEIGHT,
       alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      borderRadius: radii.md,
     },
   });
 
@@ -111,14 +188,18 @@ export default function HomeScreen() {
     moveDocument,
     totalStorageLabel,
   } = useDocuments();
-  const { isActive, clearSession } = useScanSession();
   const { sort, setSort, reload: reloadSort } = useSortPreference();
+  const [view, setView] = useState<HomeView>('files');
   const [refreshing, setRefreshing] = useState(false);
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [newFolderVisible, setNewFolderVisible] = useState(false);
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
 
   // Everything that floats near the bottom edge sits above the tab bar.
   const barOffset = TAB_BAR_ROW_HEIGHT + Math.max(insets.bottom, 0);
+  const adSlotBottom = barOffset + AD_SLOT_BOTTOM;
+  // List must scroll clear of ad slot + camera button + breathing room.
+  const listPadding = adSlotBottom + AD_SLOT_HEIGHT + 24;
 
   useFocusEffect(
     useCallback(() => {
@@ -130,19 +211,16 @@ export default function HomeScreen() {
       // Re-read the persisted sort choice: the Home tab stays mounted while a
       // Folder screen (pushed over it) may have changed it.
       reloadSort();
+      // A "Skip for now" from the Add scans flow wants the Folders view.
+      if (consumeFoldersView()) {
+        setView('folders');
+      }
       // Rate-us (in-app review): checked once per focus, after the user has
       // exported a few PDFs. All gates and error absorption live in rateUs.ts.
       maybeRequestRateUs();
       return () => task.cancel();
     }, [refresh, reloadSort]),
   );
-
-  const startNewScan = () => {
-    if (isActive) {
-      clearSession();
-    }
-    router.push('/camera');
-  };
 
   const openDocument = useCallback((doc: Document) => {
     router.push({ pathname: '/viewer', params: { id: doc.id } });
@@ -222,42 +300,60 @@ export default function HomeScreen() {
     [addFolder, moveDocument],
   );
 
-  const renderItem = useCallback(
-    ({ item }: { item: Document }) => (
-      <DocumentCard
-        document={item}
-        onRename={rename}
-        onDownload={downloadDocument}
-        onShare={shareDocument}
-        onDelete={deleteDocument}
-        onPress={openDocument}
-        folders={folders}
-        onMove={(doc, folderId) => {
-          void Haptics.selectionAsync();
-          moveDocument(doc.id, folderId).catch(() => undefined);
-        }}
-        onCreateAndMove={createAndMove}
-      />
-    ),
-    [
-      rename,
-      downloadDocument,
-      shareDocument,
-      deleteDocument,
-      openDocument,
-      folders,
-      moveDocument,
-      createAndMove,
-    ],
+  /**
+   * "Newest first" IS the date-grouped view; everything else is a flat list
+   * sorted by the chosen option. The choice is persisted (useSortPreference).
+   */
+  const sortActive = sort !== 'newest';
+
+  const listRows = useMemo<Array<ListRow>>(() => {
+    if (sortActive) {
+      return sortDocuments(documents, sort).map((doc) => ({
+        kind: 'doc',
+        key: doc.id,
+        doc,
+      }));
+    }
+    const rows: Array<ListRow> = [];
+    for (const section of groupDocumentsByDate(documents, Date.now())) {
+      rows.push({ kind: 'header', key: `header_${section.key}`, label: section.label });
+      for (const doc of section.docs) {
+        rows.push({ kind: 'doc', key: doc.id, doc });
+      }
+    }
+    return rows;
+  }, [documents, sort, sortActive]);
+
+  const rowLayouts = useMemo(() => {
+    let offset = 0;
+    const offsets = listRows.map((row) => {
+      const entry = {
+        length: row.kind === 'header' ? HEADER_ROW : ROW_HEIGHT,
+        offset,
+        index: 0,
+      };
+      offset += entry.length;
+      return entry;
+    });
+    offsets.forEach((entry, index) => {
+      entry.index = index;
+    });
+    return offsets;
+  }, [listRows]);
+
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<ListRow> | null | undefined, index: number) =>
+      rowLayouts[index],
+    [rowLayouts],
   );
 
-  // Home shows Unfiled documents only — docs missing `folderId` (Release-1
-  // records and new scans) land here automatically. Memoised so scrolling
-  // doesn't re-run the filter+sort.
-  const unfiledDocs = useMemo(
-    () => sortDocuments(documents.filter(isUnfiled), sort),
-    [documents, sort],
-  );
+  const folderNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const folder of folders) {
+      map[folder.id] = folder.name;
+    }
+    return map;
+  }, [folders]);
 
   const folderCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -279,6 +375,11 @@ export default function HomeScreen() {
     if (result.status === 'ok') {
       setNewFolderVisible(false);
       setNewFolderError(null);
+      // Created: straight into the Add scans flow for the new folder.
+      router.push({
+        pathname: '/add-scans',
+        params: { folderId: result.folder.id, mode: 'create' },
+      });
       return;
     }
     setNewFolderError(
@@ -290,6 +391,61 @@ export default function HomeScreen() {
     );
   };
 
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={handleRefresh}
+      tintColor={colors.primary}
+    />
+  );
+
+  const renderCard = useCallback(
+    (doc: Document) => (
+      <DocumentCard
+        document={doc}
+        onRename={rename}
+        onDownload={downloadDocument}
+        onShare={shareDocument}
+        onDelete={deleteDocument}
+        onPress={openDocument}
+        folders={folders}
+        onMove={(target, folderId) => {
+          void Haptics.selectionAsync();
+          moveDocument(target.id, folderId).catch(() => undefined);
+        }}
+        onCreateAndMove={createAndMove}
+        folderName={doc.folderId ? folderNameById[doc.folderId] : undefined}
+      />
+    ),
+    [
+      rename,
+      downloadDocument,
+      shareDocument,
+      deleteDocument,
+      openDocument,
+      folders,
+      moveDocument,
+      createAndMove,
+      folderNameById,
+    ],
+  );
+
+  const renderRow = useCallback(
+    ({ item }: { item: ListRow }) => {
+      if (item.kind === 'header') {
+        return (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>{item.label}</Text>
+          </View>
+        );
+      }
+      return renderCard(item.doc);
+    },
+    [renderCard, styles],
+  );
+
+  const sortButtonLabel = SORT_MENU.find((o) => o.value === sort)?.label ?? 'Sorting';
+
   return (
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.safe}>
@@ -300,94 +456,92 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <FolderStrip
-          folders={folders}
-          counts={folderCounts}
-          onOpenFolder={(folder) =>
-            router.push({ pathname: '/folder/[id]', params: { id: folder.id } })
-          }
-          onNewFolder={() => {
-            setNewFolderError(null);
-            setNewFolderVisible(true);
-          }}
-        />
-
-        {!loading ? (
-          <View style={styles.sortWrap}>
-            <SortBar value={sort} onChange={setSort} />
-          </View>
-        ) : null}
+        <View style={styles.toggleWrap}>
+          <ViewToggle view={view} onChange={setView} />
+        </View>
 
         {loading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.primary} />
           </View>
-        ) : documents.length === 0 ? (
-          <FlatList
-            data={[]}
-            renderItem={() => null}
-            ListEmptyComponent={
-              <EmptyState
-                icon="document-text-outline"
-                title="No scans yet"
-                subtitle="Tap the camera button below to scan your first document."
+        ) : view === 'files' ? (
+          <>
+            <View style={styles.sortRow}>
+              <Pressable
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setSortMenuVisible(true);
+                }}
+                style={({ pressed }) => [
+                  styles.sortBtn,
+                  pressed && styles.sortBtnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Change sorting"
+              >
+                <Ionicons name="options-outline" size={16} color={colors.primary} />
+                <Text style={styles.sortBtnLabel}>{sortButtonLabel}</Text>
+              </Pressable>
+            </View>
+            {documents.length === 0 ? (
+              <FlatList
+                data={[] as ListRow[]}
+                renderItem={() => null}
+                ListEmptyComponent={
+                  <EmptyState
+                    icon="document-text-outline"
+                    title="No scans yet"
+                    subtitle="Tap the camera button below to scan your first document."
+                  />
+                }
+                contentContainerStyle={[styles.listBase, { paddingBottom: listPadding, flexGrow: 1, justifyContent: 'center' }]}
+                refreshControl={refreshControl}
               />
-            }
-            contentContainerStyle={styles.emptyContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={colors.primary}
+            ) : (
+              <FlatList
+                data={listRows}
+                keyExtractor={(item) => item.key}
+                renderItem={renderRow}
+                contentContainerStyle={[styles.listBase, { paddingBottom: listPadding }]}
+                initialNumToRender={8}
+                maxToRenderPerBatch={8}
+                windowSize={7}
+                removeClippedSubviews
+                getItemLayout={getItemLayout}
+                refreshControl={refreshControl}
               />
-            }
-          />
-        ) : unfiledDocs.length === 0 ? (
-          <FlatList
-            data={[]}
-            renderItem={() => null}
-            ListEmptyComponent={
-              <EmptyState
-                icon="folder-open-outline"
-                title="Everything is filed"
-                subtitle="Open a folder above to see its documents. New scans will appear here."
-              />
-            }
-            contentContainerStyle={styles.emptyContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={colors.primary}
-              />
-            }
-          />
+            )}
+          </>
         ) : (
-          <FlatList
-            data={unfiledDocs}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            initialNumToRender={8}
-            maxToRenderPerBatch={8}
-            windowSize={7}
-            removeClippedSubviews
-            getItemLayout={getItemLayout}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={colors.primary}
-              />
+          <ScrollView
+            contentContainerStyle={
+              folders.length === 0
+                ? [styles.foldersCentered, { paddingBottom: listPadding }]
+                : styles.foldersPad
             }
-          />
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
+            <FolderTileGrid
+              folders={folders}
+              counts={folderCounts}
+              onOpenFolder={(folder) =>
+                router.push({ pathname: '/folder/[id]', params: { id: folder.id } })
+              }
+              onNewFolder={() => {
+                setNewFolderError(null);
+                setNewFolderVisible(true);
+              }}
+            />
+          </ScrollView>
         )}
       </SafeAreaView>
 
-      <View style={[styles.adSlot, { bottom: barOffset + 32 }]}>
+      {/* Fixed ad slot: the height is reserved even before an ad loads and on
+          load failure, so the layout never jumps. Home tab only. */}
+      <View style={[styles.adSlot, { bottom: adSlotBottom }]}>
         <AdBanner />
       </View>
-      <FAB onPress={startNewScan} bottom={barOffset + 28} />
 
       <FolderNameDialog
         visible={newFolderVisible}
@@ -396,6 +550,18 @@ export default function HomeScreen() {
         error={newFolderError}
         onSubmit={(name) => void submitNewFolder(name)}
         onCancel={() => setNewFolderVisible(false)}
+      />
+
+      <ActionMenu
+        visible={sortMenuVisible}
+        title="Sort by"
+        options={SORT_MENU.map((option) => ({
+          icon: option.icon,
+          label: option.label,
+          selected: sort === option.value,
+          onPress: () => void setSort(option.value),
+        }))}
+        onClose={() => setSortMenuVisible(false)}
       />
     </View>
   );

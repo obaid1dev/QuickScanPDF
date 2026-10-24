@@ -3,7 +3,7 @@ import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 
 /**
  * Records that a document was opened (PDF viewer or share screen) so the
- * "Recently opened" sort is accurate. Persist-only on purpose — listing
+ * "Recently opened" sort is accurate. Persist-only on purpose - listing
  * screens re-read on focus, and churning list state from a viewer screen
  * would repaint things for no user-visible benefit.
  */

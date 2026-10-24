@@ -17,7 +17,7 @@ import { getItem, setItem } from '@/lib/storage';
  * Google Play's in-app review API, surfaced after the user has exported a few
  * PDFs: the moment they've gotten real value out of the app, not a random
  * nag. Requested at most once every 90 days, and any failure here is fully
- * absorbed — export, navigation and ads are never affected.
+ * absorbed - export, navigation and ads are never affected.
  */
 
 interface RateUsState {
@@ -99,7 +99,7 @@ export function maybeRequestRateUs(): void {
         return;
       }
       InteractionManager.runAfterInteractions(() => {
-        // A beat of quiet after the screen settles — a "natural pause point".
+        // A beat of quiet after the screen settles - a "natural pause point".
         setTimeout(() => {
           void (async () => {
             try {

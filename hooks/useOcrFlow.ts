@@ -17,7 +17,7 @@ export interface OcrSheetState {
 
 export interface OcrFlow {
   /**
-   * Runs OCR for one or more page images through the daily free-cap → rewarded
+   * Runs OCR for one or more page images through the daily free-cap -> rewarded
    * ad gate, then opens the result sheet. Safe to call from any screen.
    */
   requestOcr: (uris: string[], label?: string) => void;
@@ -27,6 +27,8 @@ export interface OcrFlow {
   promptVisible: boolean;
   watchAd: () => void;
   cancelWatchAd: () => void;
+  /** Short message shown inside the reward prompt ("Ad not ready..."). */
+  rewardMessage: string | null;
 }
 
 interface OcrJob {
@@ -39,7 +41,7 @@ const DEFAULT_LABEL = 'Page text';
 /**
  * Orchestrates the whole "Extract text" experience:
  *   1. Runs while today's free allowance lasts (records one use per run).
- *   2. Past that, prompts for a rewarded ad — the run only happens once the
+ *   2. Past that, prompts for a rewarded ad - the run only happens once the
  *      reward is earned.
  *   3. If no ad is ready or showing fails, the run happens anyway for free, so
  *      an unfilled ad can never block the feature.
@@ -47,7 +49,7 @@ const DEFAULT_LABEL = 'Page text';
  * Callers render `<OcrFlowView flow={ocr} />` for the sheet + prompt.
  *
  * `busyRef` only guards the free/resolve path (every writer clears it in a
- * `finally`), while the reward prompt consumes `pendingRef` on the first tap —
+ * `finally`), while the reward prompt consumes `pendingRef` on the first tap -
  * so a missing ad event can never wedge the feature shut.
  */
 export function useOcrFlow(active = true): OcrFlow {
@@ -59,6 +61,7 @@ export function useOcrFlow(active = true): OcrFlow {
     error: '',
   });
   const [promptVisible, setPromptVisible] = useState(false);
+  const [rewardMessage, setRewardMessage] = useState<string | null>(null);
 
   const busyRef = useRef(false);
   const pendingRef = useRef<OcrJob | null>(null);
@@ -130,7 +133,7 @@ export function useOcrFlow(active = true): OcrFlow {
       busyRef.current = true;
       void (async () => {
         try {
-          // Ads off → OCR is always free, no gate at all.
+          // Ads off -> OCR is always free, no gate at all.
           if (!ADS_ENABLED) {
             await run(job);
             return;
@@ -141,7 +144,7 @@ export function useOcrFlow(active = true): OcrFlow {
             await run(job);
             return;
           }
-          // Free cap reached → offer the rewarded path.
+          // Free cap reached -> offer the rewarded path.
           pendingRef.current = job;
           busyRef.current = false;
           if (mountedRef.current) {
@@ -157,52 +160,53 @@ export function useOcrFlow(active = true): OcrFlow {
   );
 
   const watchAd = useCallback(() => {
-    // Consuming the job up-front makes the prompt single-shot: a second tap (or
-    // a stale dialog) becomes a no-op instead of queueing another ad.
     const job = pendingRef.current;
-    pendingRef.current = null;
     if (!job) {
       setPromptVisible(false);
       return;
     }
-    setPromptVisible(false);
 
-    rewarded.show({
+    /**
+     * The ad shows only after this returns true, so the prompt stays open with
+     * a "not ready" message until an ad is loaded - the job is kept pending
+     * for the next tap. Cancelling (the prompt's other button) always works,
+     * so the user is never blocked.
+     */
+    const shown = rewarded.show({
       onEarned: () => {
+        pendingRef.current = null;
+        setPromptVisible(false);
+        setRewardMessage(null);
         void (async () => {
           try {
             await recordOcrUse();
           } catch {
-            // Losing the counter entry is cosmetic — still extract the text.
+            // Losing the counter entry is cosmetic - still extract the text.
           }
           await run(job);
         })();
       },
       onUnavailable: () => {
-        if (__DEV__) {
-          console.log(
-            '[QuickScan] Rewarded ad unavailable for OCR — running this one free.',
-          );
-        }
-        void run(job);
+        setRewardMessage('Ad not ready, try again in a moment.');
+        rewarded.preload();
       },
       onClosedWithoutReward: () => {
-        if (__DEV__) {
-          console.log(
-            '[QuickScan] Rewarded ad closed without a reward — no free run.',
-          );
-        }
         pendingRef.current = job;
-        if (mountedRef.current) {
-          setPromptVisible(true);
-        }
+        setRewardMessage(null);
+        setPromptVisible(true);
       },
     });
+
+    if (shown) {
+      setPromptVisible(false);
+      setRewardMessage(null);
+    }
   }, [rewarded, run]);
 
   const cancelWatchAd = useCallback(() => {
     pendingRef.current = null;
     busyRef.current = false;
+    setRewardMessage(null);
     setPromptVisible(false);
   }, []);
 
@@ -217,5 +221,6 @@ export function useOcrFlow(active = true): OcrFlow {
     promptVisible,
     watchAd,
     cancelWatchAd,
+    rewardMessage,
   };
 }

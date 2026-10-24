@@ -216,7 +216,7 @@ export default function CameraScreen() {
     } catch {
       Alert.alert(
         'Scanner unavailable',
-        'Document scanning uses a native scanner that is not included in Expo Go. Build the app as a dev build or production APK to scan documents — importing photos from the gallery still works.',
+        'Document scanning uses a native scanner that is not included in Expo Go. Build the app as a dev build or production APK to scan documents - importing photos from the gallery still works.',
         [{ text: 'OK' }],
       );
     } finally {

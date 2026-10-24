@@ -39,7 +39,7 @@ const ThemeContext = createContext<ThemeValue | null>(null);
  * the OS theme (or the device's schedule) re-renders every screen that reads
  * this hook.
  *
- * Falls back to the dark theme while storage is loading, then flips once —
+ * Falls back to the dark theme while storage is loading, then flips once -
  * no flash of a second choice on boot.
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

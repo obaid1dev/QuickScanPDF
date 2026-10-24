@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
 import type { RewardedAd as RNGRewardedAd } from 'react-native-google-mobile-ads';
 import { AD_UNIT_IDS } from '@/constants/config';
-import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
+import { describeAdError, getAdsConsentPersonalized, initializeAds, loadAdsModule } from '@/lib/ads';
+
 import { notifyRewardedClosed } from '@/lib/adTiming';
 
 // Backoff between rewarded (re)load attempts. Fresh ad units and builds in app
@@ -10,7 +11,7 @@ import { notifyRewardedClosed } from '@/lib/adTiming';
 const RETRY_BACKOFF_MS = [4000, 8000, 16000, 30000];
 
 export interface RewardedShowCallbacks {
-  /** The user watched far enough to earn the reward — grant the use here. */
+  /** The user watched far enough to earn the reward - grant the use here. */
   onEarned: () => void;
   /**
    * Nothing was ready or `show()` failed. Callers MUST NOT block the user on
@@ -28,9 +29,15 @@ export interface RewardedController {
    */
   show: (callbacks: RewardedShowCallbacks) => boolean;
   isLoaded: boolean;
+  /**
+   * Triggers a fresh request when nothing is loaded (e.g. the user tapped
+   * "Watch ad" while no ad was ready). Best-effort; load results arrive
+   * through the usual LOADED/ERROR listeners.
+   */
+  preload: () => void;
 }
 
-// NOTE: RNGMA's public package is never statically imported at runtime here —
+// NOTE: RNGMA's public package is never statically imported at runtime here -
 // its native spec modules call `TurboModuleRegistry.getEnforcing` at
 // evaluation time, which crashes Expo Go at bundle start. Only the *type* of
 // `RewardedAd` is imported (erased at compile time); the live module is
@@ -41,7 +48,7 @@ export interface RewardedController {
  * runs after the daily free cap. Pass `active = false` to tear the ad down
  * (nothing is preloaded while the screen is not in use).
  *
- * The ad is only ever *loaded* here — showing it is always an explicit,
+ * The ad is only ever *loaded* here - showing it is always an explicit,
  * user-initiated call through `show()`, so a reward can never be earned
  * without a tap.
  */
@@ -104,6 +111,8 @@ export function useRewardedAd(active = true): RewardedController {
     };
 
     (async () => {
+      // The SDK must be initialized before the request, or it fails silently.
+      await initializeAds();
       const mod = await loadAdsModule();
       if (cancelled || !mod) {
         return;
@@ -119,11 +128,20 @@ export function useRewardedAd(active = true): RewardedController {
           if (!cancelled && adRef.current === ad) {
             failCountRef.current = 0;
             setIsLoaded(true);
+            if (__DEV__) {
+              console.log('[QuickScan] Rewarded loaded - ready');
+            }
           }
         }),
-        ad.addAdEventListener(AdEventType.ERROR, () => {
+        ad.addAdEventListener(AdEventType.ERROR, (error) => {
           if (cancelled || adRef.current !== ad) {
             return;
+          }
+          // Full SDK diagnostics: code + message, never swallowed generically.
+          if (__DEV__) {
+            console.log(
+              `[QuickScan] Rewarded load failed: ${describeAdError(error)}`,
+            );
           }
           setIsLoaded(false);
 
@@ -146,7 +164,7 @@ export function useRewardedAd(active = true): RewardedController {
           }
           if (__DEV__) {
             console.log(
-              `[QuickScan] Rewarded failed to load (attempt ${attempt}) — retrying.`,
+              `[QuickScan] Rewarded failed to load (attempt ${attempt}) - retrying.`,
             );
           }
           loadWithDelay(ad, RETRY_BACKOFF_MS[attempt - 1]);
@@ -215,7 +233,7 @@ export function useRewardedAd(active = true): RewardedController {
       const ad = adRef.current;
       if (!ad || !isLoaded || showingRef.current) {
         if (__DEV__) {
-          console.log('[QuickScan] Rewarded not ready — allowing a free run.');
+          console.log('[QuickScan] Rewarded not ready - allowing a free run.');
         }
         callbacks.onUnavailable();
         return false;
@@ -226,7 +244,7 @@ export function useRewardedAd(active = true): RewardedController {
       try {
         void ad.show().catch((e) => {
           if (__DEV__) {
-            console.log('[QuickScan] Rewarded show() rejected — allowing a free run.', e);
+            console.log('[QuickScan] Rewarded show() rejected - allowing a free run.', e);
           }
           const cb = callbacksRef.current;
           callbacksRef.current = null;
@@ -235,10 +253,10 @@ export function useRewardedAd(active = true): RewardedController {
         });
         return true;
       } catch (e) {
-        // A failed show() must never trap the user — report "nothing shown"
+        // A failed show() must never trap the user - report "nothing shown"
         // so the caller proceeds with the unpaid action.
         if (__DEV__) {
-          console.log('[QuickScan] Rewarded show() threw — allowing a free run.', e);
+          console.log('[QuickScan] Rewarded show() threw - allowing a free run.', e);
         }
         const cb = callbacksRef.current;
         callbacksRef.current = null;
@@ -250,5 +268,20 @@ export function useRewardedAd(active = true): RewardedController {
     [isLoaded],
   );
 
-  return { show, isLoaded };
+  const preload = useCallback((): void => {
+    const ad = adRef.current;
+    if (!ad || showingRef.current) {
+      return;
+    }
+    try {
+      if (__DEV__) {
+        console.log('[QuickScan] Rewarded: manual preload requested');
+      }
+      ad.load();
+    } catch {
+      // The ERROR event reports the failure and retries with backoff.
+    }
+  }, []);
+
+  return { show, isLoaded, preload };
 }

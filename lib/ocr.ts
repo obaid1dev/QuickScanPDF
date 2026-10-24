@@ -3,7 +3,7 @@
  *
  * The module's entry point calls `requireNativeModule('ExpoMlkitOcr')` while it
  * is being evaluated, so a top-level `import` throws inside Expo Go (native
- * module absent) and would take the whole route bundle down — exactly the way
+ * module absent) and would take the whole route bundle down - exactly the way
  * the AdMob module does. Everything therefore goes through `loadOcrModule()`,
  * a memoized dynamic import that resolves `null` instead of ever throwing.
  *

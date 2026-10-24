@@ -2,16 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ADS_ENABLED, AD_UNIT_IDS } from '@/constants/config';
-import { getAdsConsentPersonalized, loadAdsModule } from '@/lib/ads';
+import { getAdsConsentPersonalized, initializeAds, loadAdsModule } from '@/lib/ads';
 
 // Backoff between banner (re)load attempts. A single failure must never kill
-// the banner for the session — fresh ad units and slow-filling builds commonly
+// the banner for the session - fresh ad units and slow-filling builds commonly
 // miss the first few requests, then fill fine moments later.
 const RETRY_BACKOFF_MS = [3000, 6000, 12000, 30000];
 
 /**
  * Anchored adaptive banner for the Dashboard. Fully opt-in via ADS_ENABLED and
- * never renders when the AdMob native addon is absent (Expo Go) — the SDK
+ * never renders when the AdMob native addon is absent (Expo Go) - the SDK
  * itself is loaded lazily so this module does not blow up the route bundle.
  *
  * Robust to a flaky network / slow first fill: on a load failure it waits,
@@ -47,6 +47,8 @@ export default function AdBanner({
     }
     let cancelled = false;
     const boot = async () => {
+      // The SDK must be initialized before the banner's first request.
+      await initializeAds();
       const mod = await loadAdsModule();
       if (cancelled) {
         return;

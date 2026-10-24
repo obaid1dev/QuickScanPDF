@@ -9,6 +9,8 @@ export interface ActionMenuOption {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   danger?: boolean;
+  /** Shows an accent check at the row's end (the active sort option). */
+  selected?: boolean;
   onPress: () => void;
 }
 
@@ -131,6 +133,9 @@ export default function ActionMenu({
                 >
                   {option.label}
                 </Text>
+                {option.selected ? (
+                  <Ionicons name="checkmark" size={18} color={colors.primary} />
+                ) : null}
               </Pressable>
             ))}
             <Pressable

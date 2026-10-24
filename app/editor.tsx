@@ -152,7 +152,7 @@ export default function EditorScreen() {
 
   // Jump back home if the session runs dry (last page deleted). Only redirect
   // while this editor is the focused screen: the share screen stays stacked on
-  // top when a PDF finishes generating, and IT calls clearSession() — if we
+  // top when a PDF finishes generating, and IT calls clearSession() - if we
   // redirected here, we'd yank the user home before the download/share screen
   // even appears.
   const isFocused = useIsFocused();

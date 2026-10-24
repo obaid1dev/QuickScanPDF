@@ -183,7 +183,7 @@ const makeStyles = (colors: Palette) =>
 /**
  * "Move to folder" sheet: every folder plus Unfiled (with a check on the
  * document's current location), and a "New folder" row that switches to a
- * name-input stage — creating the folder and moving the scan in one step.
+ * name-input stage - creating the folder and moving the scan in one step.
  */
 export default function MoveFolderSheet({
   visible,
@@ -310,7 +310,7 @@ export default function MoveFolderSheet({
             ) : (
               <View style={styles.createForm}>
                 <Text style={styles.createHint}>
-                  Create a folder and move “{doc.title}” into it in one step.
+                  Create a folder and move "{doc.title}" into it in one step.
                 </Text>
                 <TextInput
                   value={name}

@@ -37,7 +37,7 @@ function createPageId(): string {
  * the duration of a scan session; cleared after PDF generation or cancellation.
  *
  * Mirrors (`pagesRef`/`currentRef`) stay in sync with React state so mutators
- * like `removePage` can read the latest snapshot synchronously — state updater
+ * like `removePage` can read the latest snapshot synchronously - state updater
  * functions are not guaranteed to run at call time.
  */
 export function ScanSessionProvider({ children }: { children: React.ReactNode }) {

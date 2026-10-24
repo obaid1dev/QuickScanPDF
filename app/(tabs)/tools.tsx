@@ -69,7 +69,7 @@ const makeStyles = (colors: Palette) =>
 
 /**
  * Tools tab placeholder. Deliberately static: no interactive elements until
- * real tools ship — per the release scope, this screen shows a "Coming soon"
+ * real tools ship - per the release scope, this screen shows a "Coming soon"
  * message and nothing else.
  */
 export default function ToolsScreen() {
@@ -89,7 +89,7 @@ export default function ToolsScreen() {
         <Text style={styles.headline}>PDF tools are on the way</Text>
         <Text style={styles.body}>
           Signature, merge, split and more are being built right into the app.
-          Keep QuickScan PDF updated — they'll appear here.
+          Keep QuickScan PDF updated - they'll appear here.
         </Text>
         <View style={styles.chip}>
           <Text style={styles.chipLabel}>Coming soon</Text>

@@ -9,7 +9,7 @@ export type SortOption = 'newest' | 'oldest' | 'name' | 'size' | 'recent';
 export const SORT_OPTIONS: ReadonlyArray<{ value: SortOption; label: string }> = [
   { value: 'newest', label: 'Newest' },
   { value: 'oldest', label: 'Oldest' },
-  { value: 'name', label: 'A–Z' },
+  { value: 'name', label: 'A-Z' },
   { value: 'size', label: 'Size' },
   { value: 'recent', label: 'Recent' },
 ];
@@ -37,7 +37,7 @@ export function isInFolder(doc: Document, folderId: string): boolean {
  * Returns a NEW sorted array (input is never mutated).
  *
  * - newest / oldest: by createdAt.
- * - name: case-insensitive A–Z (ties break newest-first).
+ * - name: case-insensitive A-Z (ties break newest-first).
  * - size: largest first.
  * - recently opened: never-opened documents sort last (newest-first among
  *   themselves); opened ones sort by lastOpenedAt, newest first.

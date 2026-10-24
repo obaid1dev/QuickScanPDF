@@ -219,8 +219,8 @@ export async function savePdfToScans(
  * Saves an existing PDF straight into the device's Downloads folder using the
  * Android Storage Access Framework.
  *
- * The first download asks once — the picker opens pre-pointed at "Downloads"
- * so the user only taps "Use this folder" — and the granted tree URI is then
+ * The first download asks once - the picker opens pre-pointed at "Downloads"
+ * so the user only taps "Use this folder" - and the granted tree URI is then
  * remembered, so every later download lands in Downloads automatically with
  * no prompts. On iOS the caller should fall back to the share sheet ("Save to
  * Files") instead.

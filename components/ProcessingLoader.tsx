@@ -29,7 +29,7 @@ const makeStyles = (colors: Palette) =>
   });
 
 export default function ProcessingLoader({
-  message = 'Generating your PDF…',
+  message = 'Generating your PDF...',
 }: ProcessingLoaderProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);

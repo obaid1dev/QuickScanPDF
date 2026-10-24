@@ -3,23 +3,29 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { radii, spacing, typography, type Palette } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { SORT_OPTIONS, type SortOption } from '@/lib/sorting';
 
-interface SortBarProps {
-  value: SortOption;
-  onChange: (next: SortOption) => void;
+export type HomeView = 'files' | 'folders';
+
+interface ViewToggleProps {
+  view: HomeView;
+  onChange: (next: HomeView) => void;
 }
+
+const OPTIONS: Array<{ value: HomeView; label: string }> = [
+  { value: 'files', label: 'All files' },
+  { value: 'folders', label: 'Folders' },
+];
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     row: {
       flexDirection: 'row',
-      columnGap: spacing.xs,
+      columnGap: spacing.sm,
     },
     option: {
       flex: 1,
       alignItems: 'center',
-      paddingVertical: 7,
+      paddingVertical: 10,
       borderRadius: radii.sm,
       borderWidth: 1,
       borderColor: colors.border,
@@ -27,33 +33,34 @@ const makeStyles = (colors: Palette) =>
     },
     optionActive: {
       borderColor: colors.primary,
-      backgroundColor: colors.accentPill,
+      backgroundColor: colors.primary,
     },
     optionPressed: {
-      transform: [{ scale: 0.96 }],
+      transform: [{ scale: 0.97 }],
     },
     label: {
-      ...typography.badge,
+      ...typography.cardTitle,
       color: colors.textSecondary,
-      fontWeight: '600',
+      fontSize: 14,
     },
     labelActive: {
-      color: colors.primary,
+      color: colors.onPrimary,
     },
   });
 
 /**
- * Compact 5-way segmented sort control (Newest / Oldest / A–Z / Size /
- * Recent). Sized to fit a 360dp-wide phone in one row.
+ * The Home screen's two-view switch ("All files" / "Folders"). The selected
+ * option is a filled accent button with white text; the unselected one is a
+ * plain surface with a border and muted text.
  */
-export default function SortBar({ value, onChange }: SortBarProps) {
+export default function ViewToggle({ view, onChange }: ViewToggleProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={styles.row}>
-      {SORT_OPTIONS.map((option) => {
-        const active = option.value === value;
+      {OPTIONS.map((option) => {
+        const active = option.value === view;
         return (
           <Pressable
             key={option.value}
@@ -70,7 +77,7 @@ export default function SortBar({ value, onChange }: SortBarProps) {
               pressed && styles.optionPressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel={`Sort by ${option.label}`}
+            accessibilityLabel={`Show ${option.label}`}
             accessibilityState={{ selected: active }}
           >
             <Text style={[styles.label, active && styles.labelActive]}>

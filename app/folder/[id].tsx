@@ -12,15 +12,14 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ActionMenu from '@/components/ActionMenu';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import DocumentCard from '@/components/DocumentCard';
 import EmptyState from '@/components/EmptyState';
 import FolderNameDialog from '@/components/FolderNameDialog';
-import SortBar from '@/components/SortBar';
+import FAB from '@/components/FAB';
 import { useDocuments, type FolderResult } from '@/hooks/useDocuments';
-import { useSortPreference } from '@/hooks/useSortPreference';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { isInFolder, sortDocuments } from '@/lib/sorting';
 import { savePdfToDevice } from '@/lib/fileManager';
@@ -73,10 +72,6 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.lg + spacing.md,
       paddingBottom: spacing.md,
     },
-    sortWrap: {
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.sm,
-    },
     centered: {
       flex: 1,
       alignItems: 'center',
@@ -85,20 +80,22 @@ const makeStyles = (colors: Palette) =>
     listContent: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.xs,
-      paddingBottom: spacing.xl,
+      // Keep the last card clear of the docked Add scans FAB.
+      paddingBottom: 120,
     },
   });
 
 /**
- * A single folder: its documents (same card as Home) with its own sort bar,
- * and a "…" menu with Rename and Delete. Deliberately NO interstitial hook —
- * folder navigation must not count as "returning home" (ads fire only from
- * viewer/share backs).
+ * A single folder: its documents (same card as "All files"), always sorted
+ * newest first, with a floating Add scans button and a "..." menu with Rename
+ * and Delete. Deliberately NO interstitial hook - folder navigation must not
+ * count as "returning home" (ads fire only from viewer/share backs).
  */
 export default function FolderScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string }>();
   const id = typeof params.id === 'string' ? params.id : '';
 
@@ -114,7 +111,6 @@ export default function FolderScreen() {
     removeFolder,
     moveDocument,
   } = useDocuments();
-  const { sort, setSort, reload: reloadSort } = useSortPreference();
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [renameVisible, setRenameVisible] = useState(false);
@@ -126,18 +122,18 @@ export default function FolderScreen() {
     [folders, id],
   );
 
+  // Folder detail is always newest first (prompt section 1).
   const folderDocs = useMemo(
-    () => sortDocuments(documents.filter((d) => isInFolder(d, id)), sort),
-    [documents, id, sort],
+    () => sortDocuments(documents.filter((d) => isInFolder(d, id)), 'newest'),
+    [documents, id],
   );
 
   useFocusEffect(
     useCallback(() => {
-      // Returning from the viewer (a "Recently opened" update) or from Home:
-      // re-read both the documents and the persisted sort choice.
+      // Returning from the viewer (a "Recently opened" update) or from the
+      // Add scans flow: re-read the documents.
       refresh().catch(() => undefined);
-      reloadSort();
-    }, [refresh, reloadSort]),
+    }, [refresh]),
   );
 
   const shareDocument = useCallback((doc: Document) => {
@@ -186,11 +182,15 @@ export default function FolderScreen() {
     [router],
   );
 
+  const openAddScans = useCallback(() => {
+    router.push({ pathname: '/add-scans', params: { folderId: id, mode: 'add' } });
+  }, [router, id]);
+
   /**
    * One-step "create folder + move" from the document card's move sheet.
    * The created folder id comes straight from the hook, so the move targets
-   * a folder that definitely exists. Moving a doc into this folder removes
-   * it from this screen's list — correct and immediately visible.
+   * a folder that definitely exists. Moving a doc into THIS folder removes
+   * it from this screen's list - correct and immediately visible.
    */
   const createAndMove = useCallback(
     async (doc: Document, name: string): Promise<FolderResult['status']> => {
@@ -276,14 +276,12 @@ export default function FolderScreen() {
             <Text style={styles.countNote}>
               {folderDocs.length} document{folderDocs.length === 1 ? '' : 's'}
             </Text>
-            <View style={styles.sortWrap}>
-              <SortBar value={sort} onChange={setSort} />
-            </View>
             {folderDocs.length === 0 ? (
               <EmptyState
                 icon="folder-open-outline"
                 title="This folder is empty"
-                subtitle="Move documents here from the Home screen."
+                subtitle="Move documents here from the Home screen, or add some right away."
+                action={{ label: 'Add scans', onPress: openAddScans }}
               />
             ) : (
               <FlatList
@@ -316,6 +314,14 @@ export default function FolderScreen() {
           </>
         )}
       </SafeAreaView>
+
+      {/* Floating Add scans button, above the Android gesture area. */}
+      <FAB
+        onPress={openAddScans}
+        icon="add"
+        label="Add scans to this folder"
+        bottom={Math.max(insets.bottom, 0) + 16}
+      />
 
       <ActionMenu
         visible={menuVisible}

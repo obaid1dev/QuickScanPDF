@@ -187,7 +187,7 @@ export default function ViewDocumentScreen() {
       }
       setDoc(found);
       setLoading(false);
-      // "Recently opened" bookkeeping — persist only, so no repaint loop.
+      // "Recently opened" bookkeeping - persist only, so no repaint loop.
       if (found) {
         void markDocumentOpened(found.id);
       }

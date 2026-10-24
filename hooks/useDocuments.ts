@@ -36,6 +36,8 @@ export interface UseDocumentsValue {
   removeFolder: (id: string) => Promise<void>;
   /** Moves a document to a folder, or to Unfiled when folderId is null. */
   moveDocument: (docId: string, folderId: string | null) => Promise<void>;
+  /** Batch move (Add scans flow): one persisted write for all selected docs. */
+  moveManyToFolder: (docIds: string[], folderId: string | null) => Promise<void>;
   /** Records an open (viewer / share screen) for "Recently opened" sorting. */
   setLastOpened: (docId: string) => Promise<void>;  totalStorageBytes: number;
   totalStorageLabel: string;
@@ -58,7 +60,7 @@ export function useDocuments(): UseDocumentsValue {
 
   const load = useCallback(async () => {
     // Reads BOTH indexes in one go. Old records with no `folderId` field (or
-    // null) are Unfiled by construction — `isUnfiled` treats the missing
+    // null) are Unfiled by construction - `isUnfiled` treats the missing
     // field as Unfiled, so Release-1 data needs no migration whatsoever.
     const [list, folderList] = await Promise.all([
       getItem<Document[]>(STORAGE_KEYS.documents),
@@ -131,7 +133,7 @@ export function useDocuments(): UseDocumentsValue {
   /**
    * Wipes the entire scan history in one action: every scan file is removed
    * with a single recursive folder delete, and the metadata index is cleared
-   * with a single storage write. Deliberately NOT a loop of `remove(id)` —
+   * with a single storage write. Deliberately NOT a loop of `remove(id)` -
    * that persisted (and re-rendered) once per document, which is what made the
    * button look like it was deleting documents one at a time.
    */
@@ -142,8 +144,8 @@ export function useDocuments(): UseDocumentsValue {
 
   /**
    * Validates and creates a folder. Validation runs against the PERSISTED
-   * folder list (not the in-memory copy) so two hook instances — the Home tab
-   * and a Folder screen — never disagree about duplicates.
+   * folder list (not the in-memory copy) so two hook instances - the Home tab
+   * and a Folder screen - never disagree about duplicates.
    */
   const addFolder = useCallback(async (rawName: string): Promise<FolderResult> => {
     const name = normalizeFolderName(rawName);
@@ -191,7 +193,7 @@ export function useDocuments(): UseDocumentsValue {
   );
 
   /** Removes the folder and re-files its documents to Unfiled. Never touches
-   *  any PDF/thumbnail file — only the two metadata indexes change. */
+   *  any PDF/thumbnail file - only the two metadata indexes change. */
   const removeFolder = useCallback(
     async (id: string): Promise<void> => {
       try {
@@ -241,6 +243,30 @@ export function useDocuments(): UseDocumentsValue {
     [load],
   );
 
+  /**
+   * Batch variant used by the Add scans screen: every selected scan moves in
+   * ONE persisted write (instead of N writes), then a single reload.
+   */
+  const moveManyToFolder = useCallback(
+    async (docIds: string[], folderId: string | null): Promise<void> => {
+      if (docIds.length === 0) {
+        return;
+      }
+      try {
+        const persisted = (await getItem<Document[]>(STORAGE_KEYS.documents)) ?? [];
+        const idSet = new Set(docIds);
+        await setItem(
+          STORAGE_KEYS.documents,
+          persisted.map((d) => (idSet.has(d.id) ? { ...d, folderId } : d)),
+        );
+        await load();
+      } catch {
+        setError('Could not move the documents.');
+      }
+    },
+    [load],
+  );
+
   /** Persist-only (no list-reload churn): the listing screens refresh on
    *  focus anyway, which is what keeps "Recently opened" accurate. */
   const setLastOpened = useCallback(
@@ -264,6 +290,7 @@ export function useDocuments(): UseDocumentsValue {
     renameFolder,
     removeFolder,
     moveDocument,
+    moveManyToFolder,
     setLastOpened,
     totalStorageBytes,
     totalStorageLabel: formatBytes(totalStorageBytes),

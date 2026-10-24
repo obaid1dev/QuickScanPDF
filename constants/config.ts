@@ -79,4 +79,4 @@ export const RATE_US_COOLDOWN_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const SCANS_FOLDER = 'scans';
 
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.2.1';

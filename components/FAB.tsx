@@ -8,8 +8,9 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 interface FABProps {
   onPress: () => void;
   icon?: keyof typeof Ionicons.glyphMap;
-  /** Distance from screen bottom. Defaults to 28; the Home tab passes a
-   *  value that clears the tab bar. */
+  /** Accessibility label; defaults to the camera action ("Add scans" FAB in folders). */
+  label?: string;
+  /** Descenders: distance from screen bottom. Defaults to 28. */
   bottom?: number;
 }
 
@@ -36,7 +37,7 @@ const makeStyles = (colors: Palette) =>
     },
   });
 
-export default function FAB({ onPress, icon = 'camera', bottom }: FABProps) {
+export default function FAB({ onPress, icon = 'camera', label, bottom }: FABProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -48,7 +49,7 @@ export default function FAB({ onPress, icon = 'camera', bottom }: FABProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Scan new document"
+      accessibilityLabel={label ?? 'Scan new document'}
       onPress={handlePress}
       style={({ pressed }) => [
         styles.fab,

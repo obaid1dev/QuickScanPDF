@@ -7,26 +7,41 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import { cardShadow, radii, typography, type Palette } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useScanSession } from '@/hooks/useScanSession';
 
 /**
  * Height of the bar's content row. Screens that float things above the bar
- * (the dashboard banner, the FAB) offset by this plus the bottom inset.
+ * (the ad slot, in-screen FABs) offset by this plus the bottom inset.
  */
 export const TAB_BAR_ROW_HEIGHT = 62;
 
+/** Diameter of the center camera button docked in the bar. */
+export const CAMERA_BUTTON_SIZE = 58;
+
+/** How far the camera button rises above the bar's top edge. */
+export const CAMERA_BUTTON_RISE = 18;
+
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const TABS: Array<{
+interface TabDef {
   name: string;
   label: string;
   active: IconName;
   inactive: IconName;
-}> = [
-  { name: 'index', label: 'Home', active: 'home', inactive: 'home-outline' },
+}
+
+const HOME: TabDef = {
+  name: 'index',
+  label: 'Home',
+  active: 'home',
+  inactive: 'home-outline',
+};
+const RIGHT_TABS: TabDef[] = [
   { name: 'tools', label: 'Tools', active: 'construct', inactive: 'construct-outline' },
   { name: 'settings', label: 'Settings', active: 'settings', inactive: 'settings-outline' },
 ];
@@ -41,6 +56,10 @@ const makeStyles = (colors: Palette) =>
     row: {
       flexDirection: 'row',
       height: TAB_BAR_ROW_HEIGHT,
+    },
+    half: {
+      flex: 1,
+      flexDirection: 'row',
     },
     item: {
       flex: 1,
@@ -82,18 +101,37 @@ const makeStyles = (colors: Palette) =>
     labelActive: {
       color: colors.primary,
     },
+    // Camera button, docked in the exact center of the bar and rising above
+    // its top edge like a center tab button.
+    cameraBtn: {
+      position: 'absolute',
+      width: CAMERA_BUTTON_SIZE,
+      height: CAMERA_BUTTON_SIZE,
+      borderRadius: CAMERA_BUTTON_SIZE / 2,
+      marginLeft: -CAMERA_BUTTON_SIZE / 2,
+      backgroundColor: colors.primary,
+      borderWidth: 4,
+      borderColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      elevation: 8,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.45,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+    },
+    cameraBtnPressed: {
+      transform: [{ scale: 0.93 }],
+      opacity: 0.92,
+    },
   });
 
 function TabItem({
-  label,
-  activeIcon,
-  inactiveIcon,
+  def,
   isActive,
   onSelect,
 }: {
-  label: string;
-  activeIcon: IconName;
-  inactiveIcon: IconName;
+  def: TabDef;
   isActive: boolean;
   onSelect: () => void;
 }) {
@@ -122,7 +160,7 @@ function TabItem({
   return (
     <Pressable
       accessibilityRole="tab"
-      accessibilityLabel={label}
+      accessibilityLabel={def.label}
       accessibilityState={{ selected: isActive }}
       onPress={onSelect}
       style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
@@ -131,62 +169,85 @@ function TabItem({
         <Animated.View pointerEvents="none" style={[styles.pill, pillStyle]} />
         <Animated.View style={[styles.iconHost, iconStyle]}>
           <Ionicons
-            name={isActive ? activeIcon : inactiveIcon}
+            name={isActive ? def.active : def.inactive}
             size={23}
             color={isActive ? colors.primary : colors.textSecondary}
           />
         </Animated.View>
       </View>
-      <Text style={[styles.label, isActive && styles.labelActive]}>{label}</Text>
+      <Text style={[styles.label, isActive && styles.labelActive]}>{def.label}</Text>
     </Pressable>
   );
 }
 
 /**
- * Custom tab bar for Expo Router's bottom tabs: three equal slots, the
- * active tab marked with a soft accent pill, a filled icon and the accent
- * color, and a light selection haptic. Sits above the Android gesture area
- * via the bottom safe-area inset.
+ * Custom tab bar for Expo Router's bottom tabs: the three tabs (Home left,
+ * Tools and Settings right) sit evenly spaced around a round accent camera
+ * button docked dead-center that rises above the bar's top edge. The button
+ * starts a new scan exactly like the old floating FAB did. Sits above the
+ * Android gesture area via the bottom safe-area inset.
  */
 export default function TabBar({ state, navigation, insets }: BottomTabBarProps) {
   const { colors, resolved } = useAppTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const safeInset = useSafeAreaInsets();
-  const bottomInset = insets?.bottom ?? safeInset.bottom;
+  const router = useRouter();
+  const insetsFallback = useSafeAreaInsets();
+  const safeInset = Math.max(insets?.bottom ?? insetsFallback.bottom, 0);
+  const { isActive, clearSession } = useScanSession();
+
+  const startNewScan = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isActive) {
+      clearSession();
+    }
+    router.push('/camera');
+  };
+
+  const renderTab = (def: TabDef) => {
+    const index = state.routes.findIndex((r) => r.name === def.name);
+    if (index < 0) {
+      return null;
+    }
+    return (
+      <TabItem
+        key={def.name}
+        def={def}
+        isActive={state.index === index}
+        onSelect={() => {
+          if (state.index === index) {
+            return;
+          }
+          void Haptics.selectionAsync();
+          navigation.navigate(def.name);
+        }}
+      />
+    );
+  };
 
   return (
     <View
       style={[
         styles.bar,
         resolved === 'light' && { boxShadow: cardShadow.light },
-        { paddingBottom: Math.max(bottomInset, 0) },
+        { paddingBottom: safeInset },
       ]}
     >
       <View style={styles.row}>
-        {TABS.map((tab) => {
-          const index = state.routes.findIndex((r) => r.name === tab.name);
-          if (index < 0) {
-            return null;
-          }
-          const isActive = state.index === index;
-          return (
-            <TabItem
-              key={tab.name}
-              label={tab.label}
-              activeIcon={tab.active}
-              inactiveIcon={tab.inactive}
-              isActive={isActive}
-              onSelect={() => {
-                if (isActive) {
-                  return;
-                }
-                void Haptics.selectionAsync();
-                navigation.navigate(tab.name);
-              }}
-            />
-          );
-        })}
+        <View style={styles.half}>{renderTab(HOME)}</View>
+        <View style={styles.half}>{RIGHT_TABS.map(renderTab)}</View>
       </View>
+      <Pressable
+        onPress={startNewScan}
+        style={({ pressed }) => [
+          styles.cameraBtn,
+          { bottom: safeInset + TAB_BAR_ROW_HEIGHT - CAMERA_BUTTON_SIZE + CAMERA_BUTTON_RISE },
+          pressed && styles.cameraBtnPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Scan new document"
+      >
+        <Ionicons name="camera" size={26} color={colors.onPrimary} />
+      </Pressable>
     </View>
   );
 }

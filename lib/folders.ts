@@ -4,7 +4,7 @@ import type { Folder } from '@/types/document';
 
 /**
  * Pure folder helpers plus AsyncStorage load/save. Folder records live under
- * their own storage key — separate from the document index — so Release-1
+ * their own storage key - separate from the document index - so Release-1
  * installs need no migration at all.
  */
 

@@ -165,7 +165,7 @@ export async function resizeImageToMax(
  * Rationale: Android's print pipeline ignores flexbox/table/absolute CSS
  * centering and lays images out at the top-left. When the page image itself
  * already fills the whole A4 page, it is dead-center no matter how the
- * renderer places it — the PDF layout cannot fight the image's own pixels.
+ * renderer places it - the PDF layout cannot fight the image's own pixels.
  * Falls back to plain resize (un-letterboxed) on any failure so the pipeline
  * never breaks.
  */

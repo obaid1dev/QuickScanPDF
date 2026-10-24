@@ -1,0 +1,155 @@
+# Prompt for OpenCode — Home UI Rework + Ad and Nav Fixes
+
+Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow it.
+
+The owner's sketches are the source of truth for layout. The design skills in AGENTS.md are for styling only (spacing, type, color, motion). They must not change the layout described here.
+
+---
+
+## SCOPE
+
+1. Replace the current Home screen layout with the two-view design below (All files / Folders).
+2. Replace the current folder cards and the sort chip row with the new layout.
+3. Fix the bottom navigation bar, the camera button placement, and the ad slot so they never overlap or move.
+4. Fix the rewarded and app-open ads that don't load in the development build.
+
+Do NOT change: the native scanner and auto-crop, PDF generation, gallery import through the Photo Picker, `blockedPermissions`, consent flow, the immersive status bar (hidden everywhere), the portrait lock, the app icon, the existing folder and sorting data model from Release 2, or the Tools "Coming soon" screen content.
+
+Do NOT add permissions. Do NOT upgrade any package. Do NOT build or submit.
+
+Bump the version, push to GitHub.
+
+---
+
+## 1. HOME SCREEN LAYOUT
+
+**Header (keep the title style, remove the gear icon)**
+- Title "QuickScan PDF" and the storage line "X used on device", as they are now.
+- Remove the settings gear icon from the header. Settings is already a tab.
+
+**Segmented toggle (replaces the current folder strip and sort chips)**
+- Two options, full width of the content area, equal widths: **All files** and **Folders**.
+- The selected option has a filled accent background (`#2563EB`, white text). The unselected option has a light surface with a border and muted text.
+- Default to **All files** on launch. Switching views doesn't trigger an ad.
+
+**View 1: All files**
+- A single scrollable list, grouped by date sections.
+- Section headers follow the sketch:
+  - **Recent**: documents created or opened in the last 24 hours that aren't in a earlier group. (Put "Recent" first if any exist.)
+  - **Yesterday**: documents created yesterday.
+  - **Date headers** for older documents, formatted like `20 OCT, 2026` (uppercase month, day, year). Use the device locale if it's easy, otherwise this format.
+- Within each section, documents are sorted newest first.
+- Each document row: thumbnail on the left, title, page count and size on the second line, and the three-dot menu on the right. Long titles truncate with an ellipsis.
+- If a document is in a folder, show the folder name as a small muted label under the title. Unfiled documents show nothing extra.
+- Tapping a row opens the viewer. The three-dot menu keeps its existing actions, including **Move to folder**.
+- **Sorting:** the date sections are the default sorting. Add one small sort icon button in the list header (aligned right, above the first section) that opens a menu with **Oldest first**, **Name A–Z**, **Size (largest first)**, and **Recently opened**. Choosing one switches the list to a flat list sorted by that option (no date headers). Choosing **Newest first** or the default returns to the date sections. Keep the choice saved between launches.
+- Empty state (no documents at all): centered icon, heading "No scans yet", and "Tap the camera button below to scan your first document."
+
+**View 2: Folders**
+- A 2-column grid of folder tiles, matching the sketch.
+- Each folder tile: a folder icon at the top, the folder name in bold, and a muted scan count below it (for example "3 scans"). A thin border and the standard 12px corner radius. No heavy shadow.
+- After the last folder, a dashed-border tile with a plus icon and the label "New folder".
+- **Empty state (no folders yet):** instead of the grid, show one large centered block with a dashed border and the heading **"Create your first folder"**, a short line underneath ("Group your scans by subject, like Work, School, or Receipts"), and a plus button. Tapping it starts the create flow.
+
+**Create folder flow**
+1. Tap **New folder** (or the empty-state block).
+2. A name dialog opens. Keep the existing rules: trim spaces, 40 characters max, no empty names, no duplicates (case-insensitive).
+3. After the name is saved, open the **Add scans** screen:
+   - Header: "Add scans to [folder name]", a back arrow, and a **Done** button.
+   - A list of all scans that are not already in this folder, sorted newest first, each with a round checkbox on the right.
+   - Tapping a row toggles its checkbox. A bottom button reads "Add 3 scans" (the count updates live) and is disabled when nothing is selected.
+   - A secondary text button **"Skip for now"** creates the folder empty and returns to the folder grid.
+   - Confirming moves the selected scans into the folder by setting `folderId`. The PDF files don't move.
+4. After confirming, go to the folder detail screen.
+
+**Folder detail screen**
+- Header: back arrow, folder name, and a three-dot menu with **Rename** and **Delete folder** (existing behavior and the existing confirmation text, which says documents move to All files and nothing is deleted).
+- Below the header, the same document rows as All files, sorted newest first.
+- A floating **Add scans** button at the bottom of the list (above the bottom nav) that opens the same Add scans screen for this folder.
+- Empty state: "This folder is empty" with the **Add scans** button.
+
+**Move to folder (existing, keep working)**
+- The three-dot menu on any document row still opens the Move to folder sheet, with every folder and **Unfiled**, plus **New folder**. This must keep working exactly as it does now.
+
+## 2. BOTTOM NAVIGATION BAR (fixed, never moves)
+
+- The bar is pinned to the bottom edge of the screen, above the Android gesture area (use the safe-area bottom inset). It is not part of the scrolling content and it is not pushed by anything else on screen.
+- Three tabs: **Home**, **Tools**, **Settings**. Keep the existing icons, labels, and the accent color for the active tab.
+- The bar has a fixed height. The content above it has a bottom padding equal to the bar's height plus the safe-area inset, so the last list item is never hidden.
+- Hide the bar on the Camera, Editor, Share, and PDF viewer screens, as it does now.
+
+## 3. CAMERA BUTTON (docked in the bar)
+
+- The camera button is a **round accent button docked in the center of the bottom bar**, rising slightly above the bar's top edge (about 16–20dp), like a center tab button. It is not a floating button over the ad.
+- There must be no large empty gap between the camera button and the bar.
+- Tapping it starts a new scan, exactly as the current FAB does.
+- It uses the accent blue `#2563EB` and a white camera icon. Keep its size consistent in both themes.
+- The Home, Tools, and Settings tabs are evenly spaced around it. The Tools and Settings tabs keep the same vertical alignment as Home.
+
+## 4. AD SLOT (fixed, never pushes the nav bar)
+
+- The banner sits in a **fixed slot directly above the bottom bar**, full width, with a reserved height equal to the standard adaptive banner height (or 50dp if the adaptive size can't be known up front). The slot's height is reserved even before an ad loads, so the layout never jumps when the ad appears.
+- If the ad fails to load, keep the slot's reserved space but render nothing inside it, or collapse the slot cleanly. Pick one and make sure the list above doesn't jump when the state changes. (Recommended: keep the reserved space so nothing moves.)
+- The slot must not overlap the camera button, the document list, or the folder grid. Leave a 24dp gap between the slot and the top edge of the raised camera button, or move the slot so the button never covers it.
+- The banner stays on the Home tab only. It doesn't appear on Tools, Settings, Camera, Editor, Share, or the viewer (the viewer banner from Release 2 stays as it is).
+
+## 5. ADS THAT DON'T LOAD IN THE DEVELOPMENT BUILD
+
+The owner tested a development build and saw:
+- The **rewarded ad** on OCR showed "reward ad failed to load."
+- The **app-open ad** never loaded.
+- The **banner** loads correctly.
+
+Do these in order:
+1. In `__DEV__`, log every ad's load and failure events with the full error code and message from the SDK (for the rewarded, app-open, and interstitial ads). Don't hide the error behind a generic message.
+2. Confirm both units use Google's test IDs in development (rewarded test: `ca-app-pub-3940256099942544/5224354917`, app-open test: `ca-app-pub-3940256099942544/9257395921`). Make sure no production ID is used in `__DEV__`.
+3. Confirm the Mobile Ads SDK is initialized before any ad is requested (`initializeAds()` must finish first). A request made before initialization fails silently.
+4. For the app-open ad, confirm it is preloaded during app startup (after initialization), and reloads after each show or failure.
+5. For the rewarded ad, confirm it is preloaded when the OCR action becomes available and reloads after each reward. If it isn't loaded when the user taps "Watch ad", show a short message ("Ad not ready, try again in a moment") and trigger a load. Never block the user.
+6. If the logs show a real configuration error (for example, a missing native module, a wrong ID format, or an unsupported format), fix that root cause.
+7. In the summary, list the exact error code and message each ad returned before the fix, so the owner can compare.
+
+Do NOT add new ad placements, and do NOT change the production ad unit IDs in `constants/config.ts`.
+
+## 6. BACK NAVIGATION AND ADS
+
+- Switching between All files and Folders, opening a folder, or moving between tabs never shows an interstitial.
+- The interstitial still shows only when the user goes back to Home from the viewer or the share screen, as before.
+- The app-open ad rules from Release 1 still apply (background return only, 4-minute cooldown, never on camera, editor, or share-processing screens).
+
+## 7. TESTING CHECKLIST (for the owner, on a development build)
+
+1. The toggle switches cleanly between All files and Folders, and the default is All files.
+2. All files groups documents under Recent, Yesterday, and date headers. Documents inside folders show the folder name.
+3. The sort icon changes the list and the choice persists after a restart. Newest returns to the date sections.
+4. Folders view with no folders shows "Create your first folder". Creating a folder opens Add scans, and selecting scans and tapping Add moves them in.
+5. Skip for now creates an empty folder.
+6. The three-dot menu's Move to folder still works from All files and from a folder.
+7. Folder detail shows its scans, and Add scans adds more.
+8. Rename and delete folder still work. Deleting moves the scans to All files and deletes no PDFs.
+9. The camera button sits in the center of the bottom bar, with no big gap, and starts a scan.
+10. The nav bar stays in place when a banner loads, fails, or resizes.
+11. The banner sits above the nav bar, and it never covers the camera button or the list.
+12. Rewarded and app-open ads show their logged load results, with no silent failures.
+13. Light and dark themes both look right.
+14. Scan, crop, PDF export, share, and gallery import still work.
+
+## 8. VERSION AND GIT
+
+- Read `expo.android.versionCode` in `app.json` and increase it by 1 from the current value.
+- Bump `expo.version` to the next patch version, and keep `APP_VERSION` in `constants/config.ts` in sync.
+- Run `npx tsc --noEmit` and fix all errors.
+- Run `npx expo prebuild` locally, read the generated `AndroidManifest.xml` to confirm no permissions were added, then delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
+- Commit with a clear message, for example `"Home UI rework: All files and Folders views, docked camera button, fixed ad slot, ad load fixes"`, and push to GitHub.
+- **Stop there. Do NOT run `eas build` or `eas submit`.**
+
+## DELIVERABLE
+
+Report:
+- Files changed or added, grouped by: layout, folders, sorting, nav bar, camera button, ad slot, ads
+- The error codes and messages the rewarded and app-open ads returned before the fix, and what fixed them
+- Result of `npx tsc --noEmit` and the prebuild manifest check
+- New versionCode and version
+- Commit message and confirmation of the push
+- Anything you couldn't verify without a device
+- Anything you noticed but didn't change
