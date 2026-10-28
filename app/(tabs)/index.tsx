@@ -50,14 +50,15 @@ const HEADER_ROW = 44;
  * Ad slot metrics (Fix 5): the slot's bottom edge sits 12dp above the TOP of
  * the nav bar's container - computed from the bar's exported height plus the
  * device's safe-area bottom inset, never a fixed screen offset. The camera
- * button rises 22dp above that same top edge, so the slot's visible banner
- * content pads up by 22 - 12 = 10dp and can never overlap the button; the
- * extra 10dp of the slot stays transparent. The full area is reserved, so
- * the list never jumps when the ad loads or fails.
+ * button rises above that same top edge by CAMERA_BUTTON_RISE, so the slot's
+ * visible banner content pads up by exactly that rise minus the 12dp gap and
+ * can never overlap the button; the extra band of the slot stays transparent.
+ * The full area is reserved, so the list never jumps when the ad loads or
+ * fails.
  */
 const AD_SLOT_HEIGHT = 50;
 const AD_SLOT_GAP_ABOVE_BAR = 12;
-const AD_SLOT_BUTTON_CLEAR = CAMERA_BUTTON_RISE - AD_SLOT_GAP_ABOVE_BAR; // 10
+const AD_SLOT_BUTTON_CLEAR = CAMERA_BUTTON_RISE - AD_SLOT_GAP_ABOVE_BAR; // 14
 
 interface HeaderRow {
   kind: 'header';
@@ -579,8 +580,8 @@ export default function HomeScreen() {
       </SafeAreaView>
 
       {/* Fixed ad slot: bottom edge 12dp above the bar's top edge; the
-          visible banner pads up 10dp more so it can never overlap the
-          risen camera button. Height reserved -> no layout jump. */}
+          visible banner pads up more (camera rise - gap) so it can never
+          overlap the risen camera button. Reserved -> no layout jump. */}
       <View
         style={[
           styles.adSlot,

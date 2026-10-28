@@ -19,11 +19,11 @@ import { useScanSession } from '@/hooks/useScanSession';
 /**
  * Floating bar metrics. The bar is a rounded container inset 16dp from the
  * screen edges; its bottom sits above the Android gesture area (safe-area
- * bottom inset + 8dp). Screens that float content above the bar (the ad slot)
+ * bottom inset + 14dp). Screens that float content above the bar (the ad slot)
  * offset from BAR_HEIGHT + BAR_BOTTOM_GAP + the bottom inset.
  */
 export const BAR_HEIGHT = 76;
-export const BAR_BOTTOM_GAP = 8;
+export const BAR_BOTTOM_GAP = 14;
 export const BAR_EDGE_INSET = 16;
 /** The bar's hairline outline; included in the camera docking math. */
 const BAR_BORDER_WIDTH = 1;
@@ -32,17 +32,17 @@ const BAR_BORDER_WIDTH = 1;
 export const CAMERA_BUTTON_SIZE = 72;
 
 /** How far the camera button's top rises above the bar's top edge. */
-export const CAMERA_BUTTON_RISE = 22;
+export const CAMERA_BUTTON_RISE = 26;
 
 /**
- * Camera docking, measured from the bar's inner bottom edge (Fix 1: the
- * button is a child of the bar container, so its position derives from the
- * bar itself). Yoga sizes are border-box, so the bar's outer height is 76
- * and its inner (padding) box is 74; `bottom: B` anchors the button's lower
- * edge to the padding-box bottom, 1dp above the outer bottom edge. From the
- * bar's outer top edge the button's top then sits at `1 + (74 - B - 72) =
- * 73 - B`; choosing B = 76 - 1 - 72 + 22 = 25 puts the top exactly 22dp
- * above the bar's outer top edge.
+ * Camera docking, measured from the bar's inner bottom edge (the button is
+ * a child of the bar container, so its position derives from the bar
+ * itself). Yoga sizes are border-box, so the bar's outer height is 76 and
+ * its inner (padding) box is 74; `bottom: B` anchors the button's lower edge
+ * to the padding-box bottom, 1dp above the outer bottom edge. From the bar's
+ * outer top edge the button's top then sits at `1 + (74 - B - 72) = 73 - B`;
+ * choosing B = 76 - 1 - 72 + 26 = 29 puts the top exactly 26dp above the
+ * bar's outer top edge.
  */
 const CAMERA_BOTTOM_IN_BAR =
   BAR_HEIGHT - BAR_BORDER_WIDTH - CAMERA_BUTTON_SIZE + CAMERA_BUTTON_RISE;
@@ -139,17 +139,25 @@ const makeStyles = (colors: Palette) =>
     labelActive: {
       color: colors.primary,
     },
-    // Camera button: a child of the bar container so it stays docked no
-    // matter how the navigator positions the bar. Centered with left:'50%'
-    // + marginLeft -SIZE/2 (exact for any bar width). The 5dp ring in the
-    // screen background color cuts it out of the bar.
-    cameraBtn: {
+    // Camera button: a plain Pressable positions it (as a child of the bar,
+    // so it stays docked no matter how the navigator positions the bar);
+    // centered with left:'50%' + marginLeft -SIZE/2, exact for any width.
+    // Hit box only - transparent - the circle visuals live on the inner
+    // Animated.View so the press scale animates the whole circle.
+    cameraHit: {
       position: 'absolute',
       width: CAMERA_BUTTON_SIZE,
       height: CAMERA_BUTTON_SIZE,
-      borderRadius: CAMERA_BUTTON_SIZE / 2,
+      left: '50%',
       marginLeft: -CAMERA_BUTTON_SIZE / 2,
       bottom: CAMERA_BOTTOM_IN_BAR,
+    },
+    // Circle visuals: accent fill, 5dp ring in the screen background color
+    // that cuts it out of the bar, soft shadow.
+    cameraBtn: {
+      width: CAMERA_BUTTON_SIZE,
+      height: CAMERA_BUTTON_SIZE,
+      borderRadius: CAMERA_BUTTON_SIZE / 2,
       backgroundColor: colors.primary,
       borderWidth: 5,
       borderColor: colors.background,
@@ -160,6 +168,9 @@ const makeStyles = (colors: Palette) =>
       shadowOpacity: 0.4,
       shadowRadius: 14,
       shadowOffset: { width: 0, height: 6 },
+    },
+    cameraContent: {
+      alignItems: 'center',
     },
     // "Scan" label: inside the bar, centered, under the button's lower edge.
     // Accent on `surface` - measured 5.2:1 (light) and 8.2:1 (dark).
@@ -236,9 +247,9 @@ function TabItem({
 /**
  * Custom floating tab bar for Expo Router's bottom tabs: a rounded container
  * (28dp radius, 1px border, soft shadow) inset 16dp from the screen edges,
- * with its bottom 8dp above the safe-area gesture zone. Home sits left and
+ * with its bottom 14dp above the safe-area gesture zone. Home sits left and
  * Tools right; the 72dp accent camera button is docked as a child of the bar
- * container, dead-center, with its top 22dp above the bar's top edge and a
+ * container, dead-center, with its top 26dp above the bar's top edge and a
  * ring cut-out; the "Scan" label sits under it inside the bar. The button
  * starts a new scan exactly like the old floating FAB did.
  */
@@ -301,7 +312,7 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
     const expectedCenterX = barWidth / 2;
     // Center measured from the bar's border-box top edge (the frame onLayout
     // reports): the top sits `rise` above it, so the center is half a button
-    // minus the rise below it = 36 - 22 = 14.
+    // minus the rise below it = 36 - 26 = 10.
     const centerYFromTop = y + CAMERA_BUTTON_SIZE / 2;
     const expectedCenterYFromTop = CAMERA_BUTTON_SIZE / 2 - CAMERA_BUTTON_RISE;
     if (
@@ -340,8 +351,12 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
           <Text style={styles.scanLabel}>Scan</Text>
         </View>
 
-        {/* Camera button: a child of the bar container (Fix 1). */}
-        <AnimatedPressable
+        {/* Camera button: a child of the bar container. Plain Pressable for
+            position + presses (Pressable with a Reanimated wrapper + style
+            function is unreliable on the New Architecture and left the icon
+            invisible on device); the press scale runs on an inner
+            Animated.View, applied to the whole circle. */}
+        <Pressable
           onPress={startNewScan}
           onLayout={(e) =>
             measureCameraLayout(
@@ -362,19 +377,17 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
               easing: Easing.out(Easing.quad),
             });
           }}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.cameraBtn,
-            cameraPressedStyle,
-            pressed && { opacity: 0.95 },
-          ]}
+          style={styles.cameraHit}
           accessibilityRole="button"
           accessibilityLabel="Scan new document"
         >
-          <Ionicons name="camera" size={30} color={colors.onPrimary} />
-        </AnimatedPressable>
+          <Animated.View style={[styles.cameraBtn, cameraPressedStyle]}>
+            <View style={styles.cameraContent}>
+              <Ionicons name="camera" size={30} color={colors.onPrimary} />
+            </View>
+          </Animated.View>
+        </Pressable>
       </View>
     </View>
   );
 }
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
