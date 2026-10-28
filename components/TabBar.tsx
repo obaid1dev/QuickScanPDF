@@ -37,13 +37,15 @@ export const CAMERA_BUTTON_RISE = 22;
 /**
  * Camera docking, measured from the bar's inner bottom edge (Fix 1: the
  * button is a child of the bar container, so its position derives from the
- * bar itself). The bar is 76dp content plus 1px borders; with `bottom: B`
- * the button's top sits `B + 72` above the inner bottom edge, which is
- * `B + 72 - (BAR_HEIGHT + 1)` above the outer top edge. Setting B =
- * BAR_HEIGHT + border + rise - size puts the top exactly `rise` above it.
+ * bar itself). Yoga sizes are border-box, so the bar's outer height is 76
+ * and its inner (padding) box is 74; `bottom: B` anchors the button's lower
+ * edge to the padding-box bottom, 1dp above the outer bottom edge. From the
+ * bar's outer top edge the button's top then sits at `1 + (74 - B - 72) =
+ * 73 - B`; choosing B = 76 - 1 - 72 + 22 = 25 puts the top exactly 22dp
+ * above the bar's outer top edge.
  */
 const CAMERA_BOTTOM_IN_BAR =
-  BAR_HEIGHT + BAR_BORDER_WIDTH + CAMERA_BUTTON_RISE - CAMERA_BUTTON_SIZE;
+  BAR_HEIGHT - BAR_BORDER_WIDTH - CAMERA_BUTTON_SIZE + CAMERA_BUTTON_RISE;
 
 /**
  * "Scan" label position, directly under the camera button's lower edge and
@@ -297,11 +299,11 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
     }
     const centerX = x + CAMERA_BUTTON_SIZE / 2;
     const expectedCenterX = barWidth / 2;
-    // Center measured from the bar's inner TOP edge (the frame onLayout
-    // reports): the camera center sits half a button below the bar's top.
+    // Center measured from the bar's border-box top edge (the frame onLayout
+    // reports): the top sits `rise` above it, so the center is half a button
+    // minus the rise below it = 36 - 22 = 14.
     const centerYFromTop = y + CAMERA_BUTTON_SIZE / 2;
-    const expectedCenterYFromTop =
-      BAR_HEIGHT - (CAMERA_BOTTOM_IN_BAR + CAMERA_BUTTON_SIZE / 2);
+    const expectedCenterYFromTop = CAMERA_BUTTON_SIZE / 2 - CAMERA_BUTTON_RISE;
     if (
       Math.abs(centerX - expectedCenterX) > 1 ||
       Math.abs(centerYFromTop - expectedCenterYFromTop) > 2
