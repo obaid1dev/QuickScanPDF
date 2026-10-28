@@ -32,6 +32,14 @@ export type Palette = {
   primary: string;
   /** Text/icons sitting on `primary`. */
   onPrimary: string;
+  /** The accent fill while a primary button is pressed (slightly darker). */
+  primaryPressed: string;
+  /**
+   * The accent when used as *text* on a light surface-sized token. In dark
+   * this is lightened: `primary` on the dark surfaces measures 3.4:1, too
+   * low for small text; the lightened value passes AA (8.2:1 on `surface`).
+   */
+  accentText: string;
   danger: string;
   onDanger: string;
   /** Dark translucent veil laid over scan thumbnails (badges, page numbers). */
@@ -62,6 +70,8 @@ export const darkPalette: Palette = {
   dangerText: '#EF4444',
   primary: '#2563EB',
   onPrimary: '#FFFFFF',
+  primaryPressed: '#1D4ED8',
+  accentText: '#8AB0FA',
   danger: '#EF4444',
   onDanger: '#FFFFFF',
   scrim: 'rgba(9, 9, 11, 0.72)',
@@ -89,6 +99,8 @@ export const lightPalette: Palette = {
   dangerText: '#B91C1C',
   primary: '#2563EB',
   onPrimary: '#FFFFFF',
+  primaryPressed: '#1D4ED8',
+  accentText: '#2563EB',
   danger: '#EF4444',
   onDanger: '#FFFFFF',
   scrim: 'rgba(9, 9, 11, 0.72)',
@@ -112,7 +124,10 @@ export const spacing = {
 
 export const radii = {
   sm: 8,
+  /** Buttons (primary, secondary, sort pill inputs). */
+  button: 14,
   md: 12,
+  /** Cards and tiles. */
   lg: 16,
   round: 999,
 } as const;

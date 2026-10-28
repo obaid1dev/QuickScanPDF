@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -21,7 +21,7 @@ import { useScanSession } from '@/hooks/useScanSession';
 export const TAB_BAR_ROW_HEIGHT = 62;
 
 /** Diameter of the center camera button docked in the bar. */
-export const CAMERA_BUTTON_SIZE = 58;
+export const CAMERA_BUTTON_SIZE = 60;
 
 /** How far the camera button rises above the bar's top edge. */
 export const CAMERA_BUTTON_RISE = 18;
@@ -35,16 +35,24 @@ interface TabDef {
   inactive: IconName;
 }
 
-const HOME: TabDef = {
+/**
+ * Option B per the release brief: the bar shows ONE tab on each side of the
+ * centered camera button - Home on the left, Tools on the right. Settings
+ * left the bar and is opened from the gear icon in the Home screen's header
+ * (the screen and its route are unchanged).
+ */
+const LEFT_TAB: TabDef = {
   name: 'index',
   label: 'Home',
   active: 'home',
   inactive: 'home-outline',
 };
-const RIGHT_TABS: TabDef[] = [
-  { name: 'tools', label: 'Tools', active: 'construct', inactive: 'construct-outline' },
-  { name: 'settings', label: 'Settings', active: 'settings', inactive: 'settings-outline' },
-];
+const RIGHT_TAB: TabDef = {
+  name: 'tools',
+  label: 'Tools',
+  active: 'construct',
+  inactive: 'construct-outline',
+};
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
@@ -57,9 +65,8 @@ const makeStyles = (colors: Palette) =>
       flexDirection: 'row',
       height: TAB_BAR_ROW_HEIGHT,
     },
-    half: {
+    column: {
       flex: 1,
-      flexDirection: 'row',
     },
     item: {
       flex: 1,
@@ -94,6 +101,7 @@ const makeStyles = (colors: Palette) =>
     },
     label: {
       ...typography.badge,
+      fontSize: 12,
       color: colors.textSecondary,
       fontWeight: '600',
       marginTop: 2,
@@ -102,7 +110,8 @@ const makeStyles = (colors: Palette) =>
       color: colors.primary,
     },
     // Camera button, docked in the exact center of the bar and rising above
-    // its top edge like a center tab button.
+    // its top edge. Centered with left:'50%' + marginLeft:-SIZE/2, which is
+    // exact for any bar width.
     cameraBtn: {
       position: 'absolute',
       width: CAMERA_BUTTON_SIZE,
@@ -116,13 +125,13 @@ const makeStyles = (colors: Palette) =>
       justifyContent: 'center',
       elevation: 8,
       shadowColor: colors.primary,
-      shadowOpacity: 0.45,
-      shadowRadius: 12,
+      shadowOpacity: 0.4,
+      shadowRadius: 14,
       shadowOffset: { width: 0, height: 6 },
     },
     cameraBtnPressed: {
       transform: [{ scale: 0.93 }],
-      opacity: 0.92,
+      opacity: 0.94,
     },
   });
 
@@ -170,7 +179,7 @@ function TabItem({
         <Animated.View style={[styles.iconHost, iconStyle]}>
           <Ionicons
             name={isActive ? def.active : def.inactive}
-            size={23}
+            size={24}
             color={isActive ? colors.primary : colors.textSecondary}
           />
         </Animated.View>
@@ -181,11 +190,12 @@ function TabItem({
 }
 
 /**
- * Custom tab bar for Expo Router's bottom tabs: the three tabs (Home left,
- * Tools and Settings right) sit evenly spaced around a round accent camera
- * button docked dead-center that rises above the bar's top edge. The button
- * starts a new scan exactly like the old floating FAB did. Sits above the
- * Android gesture area via the bottom safe-area inset.
+ * Custom tab bar for Expo Router's bottom tabs, built as three equal columns:
+ * the left column holds Home, the center column is where the round accent
+ * camera button docks (dead-center, rising above the bar's top edge), and the
+ * right column holds Tools. The camera button starts a new scan exactly like
+ * the old floating FAB did. Sits above the Android gesture area via the
+ * bottom safe-area inset.
  */
 export default function TabBar({ state, navigation, insets }: BottomTabBarProps) {
   const { colors, resolved } = useAppTheme();
@@ -194,6 +204,7 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
   const insetsFallback = useSafeAreaInsets();
   const safeInset = Math.max(insets?.bottom ?? insetsFallback.bottom, 0);
   const { isActive, clearSession } = useScanSession();
+  const [barWidth, setBarWidth] = useState(0);
 
   const startNewScan = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -224,6 +235,24 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
     );
   };
 
+  /**
+   * Measured, not guessed (release brief): with left:'50%' the button's own
+   * layout x is barCenter - half the button, so verify both numbers agree.
+   * Runs in dev builds only; a real mismatch means a layout bug upstream.
+   */
+  const measureCameraCenter = (bx: number, bw: number) => {
+    if (!__DEV__ || barWidth === 0) {
+      return;
+    }
+    const measured = bx + CAMERA_BUTTON_SIZE / 2;
+    const expected = barWidth / 2;
+    if (Math.abs(measured - expected) > 1) {
+      console.log(
+        `[QuickScan] TabBar: camera button off-center - x=${measured.toFixed(1)} expected=${expected.toFixed(1)}`,
+      );
+    }
+  };
+
   return (
     <View
       style={[
@@ -231,16 +260,25 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
         resolved === 'light' && { boxShadow: cardShadow.light },
         { paddingBottom: safeInset },
       ]}
+      onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
     >
       <View style={styles.row}>
-        <View style={styles.half}>{renderTab(HOME)}</View>
-        <View style={styles.half}>{RIGHT_TABS.map(renderTab)}</View>
+        {/* Left column: Home */}
+        <View style={styles.column}>{renderTab(LEFT_TAB)}</View>
+        {/* Center column: reserved for the docked camera button */}
+        <View style={styles.column} />
+        {/* Right column: Tools */}
+        <View style={styles.column}>{renderTab(RIGHT_TAB)}</View>
       </View>
       <Pressable
         onPress={startNewScan}
+        onLayout={(e) => measureCameraCenter(e.nativeEvent.layout.x, e.nativeEvent.layout.width)}
         style={({ pressed }) => [
           styles.cameraBtn,
-          { bottom: safeInset + TAB_BAR_ROW_HEIGHT - CAMERA_BUTTON_SIZE + CAMERA_BUTTON_RISE },
+          {
+            left: '50%',
+            bottom: safeInset + TAB_BAR_ROW_HEIGHT - CAMERA_BUTTON_SIZE + CAMERA_BUTTON_RISE,
+          },
           pressed && styles.cameraBtnPressed,
         ]}
         accessibilityRole="button"

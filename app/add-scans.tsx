@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import EmptyState from '@/components/EmptyState';
+import { PrimaryButton, SecondaryButton } from '@/components/Buttons';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { isInFolder, sortDocuments } from '@/lib/sorting';
@@ -141,41 +142,10 @@ const makeStyles = (colors: Palette, shade: 'light' | 'dark') =>
       backgroundColor: colors.background,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
-      alignItems: 'center',
+      alignItems: 'stretch',
     },
-    addBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      columnGap: 8,
-      backgroundColor: colors.primary,
-      borderRadius: radii.round,
-      paddingVertical: 14,
-      alignSelf: 'stretch',
-    },
-    addBtnPressed: {
-      transform: [{ scale: 0.98 }],
-      opacity: 0.9,
-    },
-    addBtnDisabled: {
-      opacity: 0.45,
-    },
-    addBtnText: {
-      color: colors.onPrimary,
-      fontSize: 15,
-      fontWeight: '700',
-    },
-    skipBtn: {
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.lg,
-    },
-    skipBtnPressed: {
-      opacity: 0.7,
-    },
-    skipLabel: {
-      ...typography.secondary,
-      color: colors.textSecondary,
-      fontWeight: '600',
+    bottomButton: {
+      marginTop: spacing.sm,
     },
   });
 
@@ -358,26 +328,19 @@ export default function AddScansScreen() {
               }}
             />
             <View style={[styles.bottomBar, { paddingBottom: spacing.lg + (insets.bottom ?? 0) }]}>
-              <Pressable
+              <PrimaryButton
+                label={countLabel}
+                icon="add"
                 onPress={() => void confirmAdd()}
                 disabled={selected.size === 0 || busy}
-                style={({ pressed }) => [
-                  styles.addBtn,
-                  pressed && styles.addBtnPressed,
-                  (selected.size === 0 || busy) && styles.addBtnDisabled,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={countLabel}
-              >
-                <Text style={styles.addBtnText}>{countLabel}</Text>
-              </Pressable>
-              <Pressable
+                style={styles.bottomButton}
+              />
+              <SecondaryButton
+                label="Skip for now"
                 onPress={skip}
                 disabled={busy}
-                style={({ pressed }) => [styles.skipBtn, pressed && styles.skipBtnPressed]}
-              >
-                <Text style={styles.skipLabel}>Skip for now</Text>
-              </Pressable>
+                style={styles.bottomButton}
+              />
             </View>
           </>
         )}

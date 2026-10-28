@@ -86,11 +86,23 @@ const makeStyles = (colors: Palette) =>
     },
     header: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: spacing.xl,
       paddingTop: spacing.md,
       paddingBottom: spacing.md,
+    },
+    gearBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: radii.round,
+      backgroundColor: colors.surfaceLighter,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    gearBtnPressed: {
+      transform: [{ scale: 0.92 }],
+      opacity: 0.85,
     },
     title: {
       ...typography.screenTitle,
@@ -116,10 +128,12 @@ const makeStyles = (colors: Palette) =>
       flexDirection: 'row',
       alignItems: 'center',
       columnGap: spacing.xs,
-      backgroundColor: colors.accentPill,
+      backgroundColor: colors.surfaceLighter,
+      borderWidth: 1,
+      borderColor: colors.border,
       borderRadius: radii.round,
       paddingHorizontal: spacing.md,
-      paddingVertical: 6,
+      height: 32,
     },
     sortBtnPressed: {
       transform: [{ scale: 0.96 }],
@@ -127,8 +141,9 @@ const makeStyles = (colors: Palette) =>
     },
     sortBtnLabel: {
       ...typography.badge,
-      color: colors.primary,
-      fontWeight: '700',
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
     },
     sectionHeader: {
       height: HEADER_ROW,
@@ -454,6 +469,19 @@ export default function HomeScreen() {
             <Text style={styles.title}>QuickScan PDF</Text>
             <Text style={styles.subtitle}>{totalStorageLabel} used on device</Text>
           </View>
+          {/* Settings now opens from here - it left the bottom bar (Option B,
+              bar = Home | camera | Tools). The screen and route are the same. */}
+          <Pressable
+            onPress={() => {
+              void Haptics.selectionAsync();
+              router.push('/settings');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Open Settings"
+            style={({ pressed }) => [styles.gearBtn, pressed && styles.gearBtnPressed]}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
+          </Pressable>
         </View>
 
         <View style={styles.toggleWrap}>

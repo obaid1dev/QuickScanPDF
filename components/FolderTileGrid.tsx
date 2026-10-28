@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { radii, spacing, typography, type Palette } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { PrimaryButton } from '@/components/Buttons';
 import type { Folder } from '@/types/document';
 
 interface FolderTileGridProps {
@@ -27,24 +28,33 @@ const makeStyles = (colors: Palette) =>
       width: '48.6%',
       aspectRatio: 1.15,
       backgroundColor: colors.surface,
-      borderRadius: radii.md,
+      borderRadius: radii.lg,
       borderWidth: 1,
       borderColor: colors.border,
       padding: spacing.md,
       alignItems: 'flex-start',
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
+      paddingTop: spacing.lg,
     },
     tilePressed: {
-      transform: [{ scale: 0.97 }],
-      opacity: 0.92,
+      transform: [{ scale: 0.98 }],
+      opacity: 0.94,
     },
-    tileIcon: {
+    // Soft icon badge at the tile's top-left: accent tint, accent folder icon.
+    tileIconBadge: {
+      width: 34,
+      height: 34,
+      borderRadius: radii.round,
+      backgroundColor: colors.accentPill,
+      alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: spacing.sm,
     },
     tileName: {
       ...typography.cardTitle,
       color: colors.textPrimary,
       fontSize: 15,
+      fontWeight: '600',
     },
     tileCount: {
       ...typography.badge,
@@ -67,6 +77,10 @@ const makeStyles = (colors: Palette) =>
       color: colors.textSecondary,
       fontWeight: '600',
       marginTop: spacing.xs,
+    },
+    emptyPlusWidth: {
+      alignSelf: 'center',
+      minWidth: 180,
     },
     // Empty state: one large centered dashed block inviting the first folder.
     emptyWrap: {
@@ -104,24 +118,6 @@ const makeStyles = (colors: Palette) =>
       textAlign: 'center',
       marginBottom: spacing.xl,
     },
-    emptyPlus: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      columnGap: spacing.xs,
-      backgroundColor: colors.primary,
-      borderRadius: radii.round,
-      paddingHorizontal: spacing.xl,
-      paddingVertical: 12,
-    },
-    emptyPlusPressed: {
-      transform: [{ scale: 0.97 }],
-      opacity: 0.9,
-    },
-    emptyPlusLabel: {
-      color: colors.onPrimary,
-      fontSize: 15,
-      fontWeight: '700',
-    },
   });
 
 /**
@@ -152,19 +148,12 @@ export default function FolderTileGrid({
           <Text style={styles.emptyBody}>
             Group your scans by subject, like Work, School, or Receipts
           </Text>
-          <Pressable
+          <PrimaryButton
+            label="New folder"
+            icon="add"
             onPress={onNewFolder}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.emptyPlus,
-              pressed && styles.emptyPlusPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Create new folder"
-          >
-            <Ionicons name="add" size={20} color={colors.onPrimary} />
-            <Text style={styles.emptyPlusLabel}>New folder</Text>
-          </Pressable>
+            style={styles.emptyPlusWidth}
+          />
         </Pressable>
       </View>
     );
@@ -185,12 +174,9 @@ export default function FolderTileGrid({
             accessibilityRole="button"
             accessibilityLabel={`Open folder ${folder.name}, ${count} documents`}
           >
-            <Ionicons
-              name="folder"
-              size={26}
-              color={colors.primary}
-              style={styles.tileIcon}
-            />
+            <View style={styles.tileIconBadge}>
+              <Ionicons name="folder" size={20} color={colors.primary} />
+            </View>
             <Text style={styles.tileName} numberOfLines={1}>
               {folder.name}
             </Text>

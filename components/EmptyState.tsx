@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PrimaryButton } from '@/components/Buttons';
 import { radii, spacing, typography, type Palette } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 
@@ -43,24 +44,8 @@ const makeStyles = (colors: Palette) =>
       color: colors.textSecondary,
       textAlign: 'center',
     },
-    actionBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      columnGap: spacing.xs,
-      backgroundColor: colors.primary,
-      borderRadius: radii.round,
-      paddingHorizontal: spacing.xl,
-      paddingVertical: 12,
+    actionWrap: {
       marginTop: spacing.lg,
-    },
-    actionBtnPressed: {
-      transform: [{ scale: 0.97 }],
-      opacity: 0.9,
-    },
-    actionLabel: {
-      color: colors.onPrimary,
-      fontSize: 15,
-      fontWeight: '700',
     },
   });
 
@@ -76,18 +61,12 @@ export default function EmptyState({ icon, title, subtitle, action }: EmptyState
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
       {action ? (
-        <Pressable
+        <PrimaryButton
+          label={action.label}
+          icon="add"
           onPress={action.onPress}
-          style={({ pressed }) => [
-            styles.actionBtn,
-            pressed && styles.actionBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={action.label}
-        >
-          <Ionicons name="add" size={18} color={colors.onPrimary} />
-          <Text style={styles.actionLabel}>{action.label}</Text>
-        </Pressable>
+          style={styles.actionWrap}
+        />
       ) : null}
     </View>
   );

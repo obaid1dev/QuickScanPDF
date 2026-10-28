@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { FOLDER_NAME_MAX_LENGTH } from '@/constants/config';
+import { PrimaryButton, SecondaryButton } from '@/components/Buttons';
 import {
   radii,
   spacing,
@@ -65,26 +66,11 @@ const makeStyles = (colors: Palette) =>
     },
     actions: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
       gap: spacing.sm,
       marginTop: spacing.lg,
     },
-    btn: {
-      paddingHorizontal: spacing.lg,
-      paddingVertical: 10,
-      borderRadius: radii.sm,
-    },
-    btnSecondary: {
-      color: colors.textSecondary,
-      fontSize: 15,
-    },
-    btnPrimary: {
-      backgroundColor: colors.primary,
-    },
-    btnPrimaryText: {
-      color: colors.onPrimary,
-      fontSize: 15,
-      fontWeight: '600',
+    dialogButton: {
+      flex: 1,
     },
   });
 
@@ -134,22 +120,16 @@ export default function FolderNameDialog({
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.actions}>
-            <Pressable
+            <SecondaryButton
+              label="Cancel"
               onPress={onCancel}
-              style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}
-            >
-              <Text style={styles.btnSecondary}>Cancel</Text>
-            </Pressable>
-            <Pressable
+              style={styles.dialogButton}
+            />
+            <PrimaryButton
+              label={confirmLabel}
               onPress={() => onSubmit(name)}
-              style={({ pressed }) => [
-                styles.btn,
-                styles.btnPrimary,
-                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
-              ]}
-            >
-              <Text style={styles.btnPrimaryText}>{confirmLabel}</Text>
-            </Pressable>
+              style={styles.dialogButton}
+            />
           </View>
         </View>
       </View>
