@@ -1,4 +1,4 @@
-# Prompt for OpenCode — Bigger Camera Button, Fuller Nav Bar, Top Space Fix
+# Prompt for OpenCode — Fix Camera Button, Stray Gear, Top Space, Ad Slot
 
 Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow it.
 
@@ -6,87 +6,107 @@ Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow 
 
 ## SCOPE
 
-The owner likes the new Home layout (All files / Folders toggle, date list, centered camera button). Change only these areas:
+Fix only these five problems. Do not change anything else.
 
-1. **Bottom bar design:** make the bar look full and finished, and make the camera button bigger.
-2. **Top spacing:** remove the extra empty space above the title.
-3. **Stray floating gear:** remove the gray circular gear button that currently floats over the document card. The settings gear already lives in the header, so this is a leftover.
+1. The camera button is below the nav bar, not docked into it.
+2. The "Scan" label is white on a light background, so it is invisible.
+3. A stray gray gear button still floats over the document card.
+4. The empty space above the title is too large.
+5. The ad slot sits in the middle of the screen, not directly above the nav bar.
 
-Do NOT change: the toggle, the sort pill, the folder grid, the document rows, the ads logic or the banner's position relative to the bar, the scanner, PDF generation, permissions, the portrait lock, the immersive status bar, or any navigation route. Do NOT add features.
+Do NOT change: the All files / Folders toggle, the sort pill, the folder views, the document rows, the scanner, PDF generation, permissions, the portrait lock, the immersive status bar, the ad units, or any navigation route.
 
 Do NOT upgrade any package. Do NOT build or submit.
 
 ---
 
-## FIX 1 — BOTTOM BAR (fuller look, bigger camera)
+## VERSION (set exactly, do not auto-increment)
 
-**Current problem:** the bar is a thin strip with three small items and a lot of empty white space, so it looks unfinished.
+Set these exact values. Do not compute them from the current numbers:
 
-**Required design: a raised, rounded, floating bar**
-- The bar is a rounded container (full-radius, about 28dp corner radius) inset **16dp** from the left and right screen edges, with its bottom sitting above the Android gesture area (use the safe-area bottom inset plus 8dp).
-- Height: **76dp**. Background: the `surface` token (white in light theme, `surface` in dark). A 1px `border` token outline and a soft shadow, so it reads as a separate floating layer above the content.
-- Three items inside the bar: **Home** (left), **Tools** (right), and the **camera** in the center. Home and Tools are evenly spaced on either side of the center.
-- Each tab item: 24dp icon with a 12sp label underneath. The active tab uses the accent color on both icon and label, with a soft accent-tinted pill behind the icon.
+- `expo.version`: `"1.0.6"`
+- `expo.android.versionCode`: `12`
+- `APP_VERSION` in `constants/config.ts`: `'1.0.6'`
 
-**Bigger camera button**
-- Diameter **72dp** (up from 60dp), filled with the accent color `#2563EB`, white camera icon at 30dp.
-- It sits in the exact horizontal center of the bar and rises about **22dp above** the top edge of the bar.
-- Give it a **ring cut-out**: a 5dp ring in the screen background color around the button, so it looks docked into the bar rather than floating on top of it.
-- Add a small **"Scan"** label (12sp, semibold, accent color) directly under the camera icon **inside the button area**, or just below the button in the bar, whichever fits without clipping. This fills the empty space and tells the user what the button does.
-- Press feedback: scale to 96% over 100ms, and back.
-- Keep the bar hidden on the camera, editor, share, and viewer screens, as it is now.
+Reason: the owner's live Play Console release is 11 (1.0.5). The next upload is 12 (1.0.6). The internal numbers used during development (1.2.x and 16 or 17) must not be used for the Play upload.
 
-**Why this layout:** a floating, rounded bar with a larger docked center button looks finished and balanced, and the "Scan" label gives the empty middle of the bar a clear purpose without adding a fourth tab.
+Also update AGENTS.md. In the Release rules section, replace any instruction to auto-increment the version with this:
 
-**Layout rules**
-- Measure the camera button's center with `onLayout` and confirm it equals the bar's width divided by two. Keep the existing `__DEV__` check that logs a mismatch.
-- The banner's reserved slot sits above the bar. Update its position math so the banner never overlaps the raised camera button (leave at least 12dp between the banner and the top of the camera button).
-- The content above the bar has enough bottom padding that the last list item is never hidden behind the bar.
+> The owner sets `expo.version` and `expo.android.versionCode` explicitly in each prompt. Do not compute or auto-increment them. If a prompt doesn't state the values, stop and ask.
 
-## FIX 2 — REMOVE THE EMPTY SPACE AT THE TOP
+---
 
-**Current problem:** the title "QuickScan PDF" starts too far down, leaving an empty band above it.
+## FIX 1 — CAMERA BUTTON DOCKED INTO THE NAV BAR
+
+**Current problem:** the camera button sits below the bar, partly outside it.
 
 **Required result**
-- The header starts at the **top safe-area inset plus 8dp**, not at a fixed padding below it.
-- The title and the storage line "224 KB used on device" sit at the top of the header with no extra margin above the title.
-- The settings gear stays in the header, aligned vertically with the title, and is a round button about 40dp in size with the same surface style as the sort pill.
-- Keep the spacing between the header and the All files / Folders toggle at 16dp. The toggle and everything below it keep their current position relative to the header.
-- The status bar is still hidden everywhere, so this top spacing uses only the safe-area inset that the device reports (which is small when the status bar is hidden).
+- The camera button is a child of the same container as the bar (or is positioned relative to the bar's measured top edge), so its position depends on the bar, not on a fixed offset.
+- It is centered horizontally (its center x equals the screen width divided by two).
+- It is 72dp in diameter, with its top rising about 22dp above the bar's top edge, and a 5dp ring cut-out in the screen background color.
+- The bar stays a rounded floating container, inset 16dp from each side, 76dp tall, above the Android gesture area.
+- Measure with `onLayout` in development. If the button's center y is more than 2dp away from the bar's top edge plus 0, log a `__DEV__` warning naming the component and the measured values, and fix the cause.
 
-## FIX 3 — REMOVE THE STRAY FLOATING GEAR
+## FIX 2 — "SCAN" LABEL VISIBLE
 
-- Find the gray circular gear button that appears over the document card in the list area (it looks like a floating action button). Remove it.
-- Confirm the only settings entry points are the gear in the Home header, which opens the Settings screen. Do not add a second one.
-- If the floating gear is a left-over component (for example, an old settings FAB or a debug button), delete it, not just hide it.
+- The "Scan" label must use the accent text token (`accentText`), not white.
+- Place it directly under the camera icon, inside the bar, so it is above the bottom edge of the bar and fully visible.
+- Check contrast against the bar's `surface` color in both themes. If it fails, use the text token instead.
 
-## TESTING CHECKLIST (for the owner, on a development build)
+## FIX 3 — REMOVE THE STRAY GEAR
 
-1. The camera button is noticeably bigger, centered, and sits with the ring cut-out above the bar.
-2. The bar looks full: a rounded floating container with Home and Tools balanced around the camera, and the "Scan" label visible.
-3. The title sits at the top of the screen with no large empty band above it, on a small and a large phone.
-4. There is only one gear icon, in the header. No gray floating gear over the document list.
-5. The banner sits above the bar and never overlaps the camera button or the list.
-6. The bar is hidden on the camera, editor, share, and viewer screens.
-7. Light and dark themes both look correct.
-8. Folders, sorting, ads, scanning, PDF export, and sharing all still work.
+- The gray circular gear floating over the document card is a leftover. Find it and delete it, not just hide it.
+- Search the project for any settings button that uses absolute positioning, a floating-action style, or a second gear icon outside the Home header (search for `settings` in `components/` and in `app/(tabs)/index.tsx`).
+- Keep exactly one settings entry point: the gear in the Home header, aligned with the title, which opens Settings.
+
+## FIX 4 — REDUCE THE TOP SPACE
+
+**Current problem:** the title sits about 60dp below the top of the screen, which looks empty.
+
+**Required result**
+- The header's top padding is the device's top safe-area inset plus **12dp**. Nothing else adds space above the title.
+- The title and the storage line keep their current size and spacing.
+- The toggle and everything below it move up with the header. Keep the gap between the header and the toggle at 16dp.
+- Check small phones (360dp wide) and tall phones (411dp wide, 800dp+ tall).
+
+## FIX 5 — AD SLOT DIRECTLY ABOVE THE NAV BAR
+
+**Current problem:** the banner sits in the middle of the screen, far above the bar.
+
+**Required result**
+- The ad slot's bottom edge is **12dp above the top of the nav bar's container** (not the top of the camera button, which can rise above the bar). Compute this from the bar's measured height and the safe-area bottom inset, not from a fixed number.
+- The slot's height is reserved so the list doesn't jump when the ad loads.
+- The slot must not overlap the camera button, the document list, or the folder grid.
+- The banner stays on the Home tab only, as before.
+
+## TESTING CHECKLIST (owner, on a development build)
+
+1. The camera button is centered in the bar, with its top above the bar's top edge and the ring visible. Nothing is below the bar.
+2. The "Scan" label is visible, in the accent color, inside the bar.
+3. There is only one gear icon, in the header. No gray gear over the list.
+4. The title sits near the top of the screen, with about 12dp of space above it.
+5. The ad slot sits just above the nav bar, not in the middle of the screen.
+6. Light and dark themes both look correct.
+7. Folders, sorting, ads, scanning, PDF export, and sharing still work.
 
 ## VERSION AND GIT
 
-- Read `expo.android.versionCode` in `app.json` and increase it by 1.
-- Bump `expo.version` to the next patch version (`1.2.3` if the current version is `1.2.2`), and keep `APP_VERSION` in `constants/config.ts` in sync.
+- Set the version values exactly as listed in the VERSION section above.
+- Update the AGENTS.md release rule as described above.
 - Run `npx tsc --noEmit` and fix all errors.
 - Run `npx expo prebuild` locally, read the generated `AndroidManifest.xml` to confirm no permissions were added, then delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
-- Commit with a clear message, for example `"Bigger camera button, floating nav bar, top spacing fix, remove stray gear"`, and push to GitHub.
+- Commit with a clear message, for example `"Fix camera dock, Scan label, stray gear, top space, ad slot; version 1.0.6 (12)"`, and push to GitHub.
 - **Stop there. Do NOT run `eas build` or `eas submit`.**
 
 ## DELIVERABLE
 
 Report:
-- Files changed, grouped by bottom bar, camera button, header spacing, and stray gear
-- The measured camera button center and the banner-to-button gap
-- Where the stray gear component came from, and whether it was deleted
+- Files changed, grouped by the five fixes
+- The measured camera button center y and bar top edge
+- The name of the stray gear component, and whether it was deleted
+- The measured gap between the title and the top of the screen
+- The gap between the ad slot and the nav bar
 - Result of `npx tsc --noEmit` and the prebuild manifest check
-- New versionCode and version
+- The version values committed (1.0.6, versionCode 12)
 - Commit message and confirmation of the push
 - Anything you couldn't verify without a device

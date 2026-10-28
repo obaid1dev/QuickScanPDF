@@ -45,8 +45,8 @@ QuickScan PDF is an offline Android document scanner built with Expo SDK 57, Rea
 ## Release rules
 
 - **Never run `eas build` or `eas submit` unless the task explicitly says so.** Stop after the git push.
-- Before every release, read `expo.android.versionCode` in `app.json` and increase it by 1. It must be higher than any version code already on Play.
-- Bump `expo.version` to the next patch version (or minor for new features), and keep `APP_VERSION` in `constants/config.ts` in sync.
+- The owner sets `expo.version` and `expo.android.versionCode` explicitly in each prompt. Do not compute or auto-increment them. If a prompt doesn't state the values, stop and ask.
+- Keep `APP_VERSION` in `constants/config.ts` in sync with `expo.version`.
 - Commit with a clear message describing the change, then `git push`.
 - Keep `expo-build-properties` R8 settings (`enableProguardInReleaseBuilds`, `enableShrinkResourcesInReleaseBuilds`) in release builds. Don't add R8 keep rules unless a release crash log shows a specific library needs one.
 

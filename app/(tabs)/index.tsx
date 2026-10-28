@@ -47,13 +47,17 @@ const ROW_HEIGHT = 96;
 const HEADER_ROW = 44;
 
 /**
- * Fixed ad slot metrics: the slot sits directly above the floating bar, and
- * must clear the raised camera button by at least 12dp: bar top + 22dp rise
- * + 12dp = bar top + 34.
+ * Ad slot metrics (Fix 5): the slot's bottom edge sits 12dp above the TOP of
+ * the nav bar's container - computed from the bar's exported height plus the
+ * device's safe-area bottom inset, never a fixed screen offset. The camera
+ * button rises 22dp above that same top edge, so the slot's visible banner
+ * content pads up by 22 - 12 = 10dp and can never overlap the button; the
+ * extra 10dp of the slot stays transparent. The full area is reserved, so
+ * the list never jumps when the ad loads or fails.
  */
 const AD_SLOT_HEIGHT = 50;
-const AD_SLOT_GAP_ABOVE_CAMERA = 12;
-const AD_SLOT_BOTTOM = CAMERA_BUTTON_RISE + AD_SLOT_GAP_ABOVE_CAMERA; // 34
+const AD_SLOT_GAP_ABOVE_BAR = 12;
+const AD_SLOT_BUTTON_CLEAR = CAMERA_BUTTON_RISE - AD_SLOT_GAP_ABOVE_BAR; // 10
 
 interface HeaderRow {
   kind: 'header';
@@ -89,9 +93,10 @@ const makeStyles = (colors: Palette) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: spacing.xl,
-      // Top safe-area inset + 8dp: the SafeAreaView reports the inset, so the
-      // header itself adds only this 8dp. Status bar is hidden everywhere.
-      paddingTop: spacing.sm,
+      // Fix 4: the SafeAreaView reports the device's top safe-area inset
+      // (small - the status bar is hidden everywhere); the header adds only
+      // these 12dp, so nothing else adds space above the title.
+      paddingTop: spacing.md,
       // 16dp between the header and the All files / Folders toggle.
       paddingBottom: spacing.lg,
     },
@@ -216,12 +221,13 @@ export default function HomeScreen() {
   const [newFolderVisible, setNewFolderVisible] = useState(false);
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
 
-  // Everything that floats near the bottom edge sits above the floating bar:
-  // bar top = bottom inset + 8dp gap + bar height.
-  const barOffset = BAR_BOTTOM_GAP + BAR_HEIGHT + Math.max(insets.bottom, 0);
-  const adSlotBottom = barOffset + AD_SLOT_BOTTOM;
-  // List must scroll clear of ad slot + camera button + breathing room.
-  const listPadding = adSlotBottom + AD_SLOT_HEIGHT + 24;
+  // Bar top edge, from the navigator style (bottom inset above the gesture
+  // area) and the bar's own constants - measured values, not screen guesses.
+  const barTopOffset = Math.max(insets.bottom, 0) + BAR_BOTTOM_GAP + BAR_HEIGHT;
+  const adSlotBottom = barTopOffset + AD_SLOT_GAP_ABOVE_BAR;
+  const slotHeight = AD_SLOT_HEIGHT + AD_SLOT_BUTTON_CLEAR;
+  // List must scroll clear of the whole reserved slot + breathing room.
+  const listPadding = adSlotBottom + slotHeight + 24;
 
   useFocusEffect(
     useCallback(() => {
@@ -572,9 +578,15 @@ export default function HomeScreen() {
         )}
       </SafeAreaView>
 
-      {/* Fixed ad slot: the height is reserved even before an ad loads and on
-          load failure, so the layout never jumps. Home tab only. */}
-      <View style={[styles.adSlot, { bottom: adSlotBottom }]}>
+      {/* Fixed ad slot: bottom edge 12dp above the bar's top edge; the
+          visible banner pads up 10dp more so it can never overlap the
+          risen camera button. Height reserved -> no layout jump. */}
+      <View
+        style={[
+          styles.adSlot,
+          { bottom: adSlotBottom, height: slotHeight, paddingBottom: AD_SLOT_BUTTON_CLEAR },
+        ]}
+      >
         <AdBanner />
       </View>
 
