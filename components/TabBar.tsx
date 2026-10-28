@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -15,16 +17,20 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useScanSession } from '@/hooks/useScanSession';
 
 /**
- * Height of the bar's content row. Screens that float things above the bar
- * (the ad slot, in-screen FABs) offset by this plus the bottom inset.
+ * Floating bar metrics. The bar is a rounded container inset 16dp from the
+ * screen edges; its bottom sits above the Android gesture area (safe-area
+ * bottom inset + 8dp). Screens that float content above the bar (the ad slot)
+ * offset from BAR_HEIGHT + BAR_BOTTOM_GAP + the bottom inset.
  */
-export const TAB_BAR_ROW_HEIGHT = 62;
+export const BAR_HEIGHT = 76;
+export const BAR_BOTTOM_GAP = 8;
+export const BAR_EDGE_INSET = 16;
 
-/** Diameter of the center camera button docked in the bar. */
-export const CAMERA_BUTTON_SIZE = 60;
+/** Diameter of the docked camera button (72dp, up from 60dp). */
+export const CAMERA_BUTTON_SIZE = 72;
 
 /** How far the camera button rises above the bar's top edge. */
-export const CAMERA_BUTTON_RISE = 18;
+export const CAMERA_BUTTON_RISE = 22;
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -35,12 +41,7 @@ interface TabDef {
   inactive: IconName;
 }
 
-/**
- * Option B per the release brief: the bar shows ONE tab on each side of the
- * centered camera button - Home on the left, Tools on the right. Settings
- * left the bar and is opened from the gear icon in the Home screen's header
- * (the screen and its route are unchanged).
- */
+/** Home on the left, Tools on the right - Settings opens from the header gear. */
 const LEFT_TAB: TabDef = {
   name: 'index',
   label: 'Home',
@@ -54,16 +55,23 @@ const RIGHT_TAB: TabDef = {
   inactive: 'construct-outline',
 };
 
+const CAMERA_PRESS_MS = 100;
+
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    wrap: {},
     bar: {
+      height: BAR_HEIGHT,
+      marginHorizontal: BAR_EDGE_INSET,
+      borderRadius: 28,
+      borderWidth: 1,
+      borderColor: colors.border,
       backgroundColor: colors.surface,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
+      overflow: 'visible',
     },
     row: {
+      flex: 1,
       flexDirection: 'row',
-      height: TAB_BAR_ROW_HEIGHT,
     },
     column: {
       flex: 1,
@@ -71,7 +79,7 @@ const makeStyles = (colors: Palette) =>
     item: {
       flex: 1,
       alignItems: 'center',
-      paddingTop: 6,
+      paddingTop: 12,
       justifyContent: 'flex-start',
     },
     itemPressed: {
@@ -80,7 +88,7 @@ const makeStyles = (colors: Palette) =>
     },
     iconWrap: {
       width: 56,
-      height: 32,
+      height: 34,
       alignItems: 'center',
       justifyContent: 'center',
       position: 'relative',
@@ -104,14 +112,15 @@ const makeStyles = (colors: Palette) =>
       fontSize: 12,
       color: colors.textSecondary,
       fontWeight: '600',
-      marginTop: 2,
+      marginTop: 3,
     },
     labelActive: {
       color: colors.primary,
     },
     // Camera button, docked in the exact center of the bar and rising above
-    // its top edge. Centered with left:'50%' + marginLeft:-SIZE/2, which is
-    // exact for any bar width.
+    // its top edge. Centered with left:'50%' + marginLeft:-SIZE/2, exact for
+    // any bar width. The 5dp ring in the screen background color cuts the
+    // button out of the bar so it reads as docked, not floating.
     cameraBtn: {
       position: 'absolute',
       width: CAMERA_BUTTON_SIZE,
@@ -119,8 +128,8 @@ const makeStyles = (colors: Palette) =>
       borderRadius: CAMERA_BUTTON_SIZE / 2,
       marginLeft: -CAMERA_BUTTON_SIZE / 2,
       backgroundColor: colors.primary,
-      borderWidth: 4,
-      borderColor: colors.surface,
+      borderWidth: 5,
+      borderColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
       elevation: 8,
@@ -129,9 +138,15 @@ const makeStyles = (colors: Palette) =>
       shadowRadius: 14,
       shadowOffset: { width: 0, height: 6 },
     },
-    cameraBtnPressed: {
-      transform: [{ scale: 0.93 }],
-      opacity: 0.94,
+    cameraContent: {
+      alignItems: 'center',
+    },
+    cameraLabel: {
+      ...typography.badge,
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.onPrimary,
+      marginTop: 1,
     },
   });
 
@@ -190,12 +205,13 @@ function TabItem({
 }
 
 /**
- * Custom tab bar for Expo Router's bottom tabs, built as three equal columns:
- * the left column holds Home, the center column is where the round accent
- * camera button docks (dead-center, rising above the bar's top edge), and the
- * right column holds Tools. The camera button starts a new scan exactly like
- * the old floating FAB did. Sits above the Android gesture area via the
- * bottom safe-area inset.
+ * Custom floating tab bar for Expo Router's bottom tabs: a rounded container
+ * (28dp radius, 1px border, soft shadow) inset 16dp from the screen edges,
+ * with its bottom 8dp above the safe-area gesture zone. Home sits in the left
+ * column and Tools in the right; the round 72dp accent camera button docks
+ * dead-center and rises 22dp above the bar's top edge with a ring cut-out and
+ * a "Scan" label under the icon. The button starts a new scan exactly like
+ * the old floating FAB did.
  */
 export default function TabBar({ state, navigation, insets }: BottomTabBarProps) {
   const { colors, resolved } = useAppTheme();
@@ -204,7 +220,12 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
   const insetsFallback = useSafeAreaInsets();
   const safeInset = Math.max(insets?.bottom ?? insetsFallback.bottom, 0);
   const { isActive, clearSession } = useScanSession();
-  const [barWidth, setBarWidth] = useState(0);
+  const [wrapWidth, setWrapWidth] = useState(0);
+  const cameraPress = useSharedValue(0);
+
+  const cameraPressedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - 0.04 * cameraPress.value }],
+  }));
 
   const startNewScan = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -237,15 +258,16 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
 
   /**
    * Measured, not guessed (release brief): with left:'50%' the button's own
-   * layout x is barCenter - half the button, so verify both numbers agree.
-   * Runs in dev builds only; a real mismatch means a layout bug upstream.
+   * layout x is half the wrapper minus half the button, so verify both
+   * numbers agree. The wrap spans the full screen width. Runs in dev builds
+   * only; a real mismatch means a layout bug upstream.
    */
   const measureCameraCenter = (bx: number, bw: number) => {
-    if (!__DEV__ || barWidth === 0) {
+    if (!__DEV__ || wrapWidth === 0) {
       return;
     }
     const measured = bx + CAMERA_BUTTON_SIZE / 2;
-    const expected = barWidth / 2;
+    const expected = wrapWidth / 2;
     if (Math.abs(measured - expected) > 1) {
       console.log(
         `[QuickScan] TabBar: camera button off-center - x=${measured.toFixed(1)} expected=${expected.toFixed(1)}`,
@@ -255,37 +277,63 @@ export default function TabBar({ state, navigation, insets }: BottomTabBarProps)
 
   return (
     <View
-      style={[
-        styles.bar,
-        resolved === 'light' && { boxShadow: cardShadow.light },
-        { paddingBottom: safeInset },
-      ]}
-      onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+      style={[styles.wrap, { paddingBottom: safeInset + BAR_BOTTOM_GAP }]}
+      onLayout={(e) => setWrapWidth(e.nativeEvent.layout.width)}
     >
-      <View style={styles.row}>
-        {/* Left column: Home */}
-        <View style={styles.column}>{renderTab(LEFT_TAB)}</View>
-        {/* Center column: reserved for the docked camera button */}
-        <View style={styles.column} />
-        {/* Right column: Tools */}
-        <View style={styles.column}>{renderTab(RIGHT_TAB)}</View>
+      <View
+        style={[
+          styles.bar,
+          resolved === 'light' && { boxShadow: cardShadow.light },
+        ]}
+      >
+        <View style={styles.row}>
+          {/* Left column: Home */}
+          <View style={styles.column}>{renderTab(LEFT_TAB)}</View>
+          {/* Center column: reserved for the docked camera button */}
+          <View style={styles.column} />
+          {/* Right column: Tools */}
+          <View style={styles.column}>{renderTab(RIGHT_TAB)}</View>
+        </View>
       </View>
-      <Pressable
+      <AnimatedPressable
         onPress={startNewScan}
         onLayout={(e) => measureCameraCenter(e.nativeEvent.layout.x, e.nativeEvent.layout.width)}
-        style={({ pressed }) => [
+        onPressIn={() => {
+          cameraPress.value = withTiming(1, {
+            duration: CAMERA_PRESS_MS,
+            easing: Easing.out(Easing.quad),
+          });
+        }}
+        onPressOut={() => {
+          cameraPress.value = withTiming(0, {
+            duration: CAMERA_PRESS_MS,
+            easing: Easing.out(Easing.quad),
+          });
+        }}
+        style={({ pressed }: { pressed: boolean }) => [
           styles.cameraBtn,
+          cameraPressedStyle,
           {
             left: '50%',
-            bottom: safeInset + TAB_BAR_ROW_HEIGHT - CAMERA_BUTTON_SIZE + CAMERA_BUTTON_RISE,
+            bottom:
+              safeInset +
+              BAR_BOTTOM_GAP +
+              BAR_HEIGHT -
+              CAMERA_BUTTON_SIZE +
+              CAMERA_BUTTON_RISE,
           },
-          pressed && styles.cameraBtnPressed,
+          pressed && { opacity: 0.95 },
         ]}
         accessibilityRole="button"
         accessibilityLabel="Scan new document"
       >
-        <Ionicons name="camera" size={26} color={colors.onPrimary} />
-      </Pressable>
+        <View style={styles.cameraContent}>
+          <Ionicons name="camera" size={30} color={colors.onPrimary} />
+          <Text style={styles.cameraLabel}>Scan</Text>
+        </View>
+      </AnimatedPressable>
     </View>
   );
 }
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

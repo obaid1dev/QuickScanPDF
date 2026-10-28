@@ -24,7 +24,7 @@ import EmptyState from '@/components/EmptyState';
 import FolderNameDialog from '@/components/FolderNameDialog';
 import FolderTileGrid from '@/components/FolderTileGrid';
 import ViewToggle, { type HomeView } from '@/components/ViewToggle';
-import { TAB_BAR_ROW_HEIGHT, CAMERA_BUTTON_RISE } from '@/components/TabBar';
+import { BAR_HEIGHT, BAR_BOTTOM_GAP, CAMERA_BUTTON_RISE } from '@/components/TabBar';
 import { useDocuments, type FolderResult } from '@/hooks/useDocuments';
 import { useSortPreference } from '@/hooks/useSortPreference';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -47,13 +47,13 @@ const ROW_HEIGHT = 96;
 const HEADER_ROW = 44;
 
 /**
- * Fixed ad slot metrics (prompt section 4): the slot sits directly above the
- * bottom bar with a reserved 50dp height, and must clear the raised camera
- * button by a 24dp gap: bar top + 18dp rise + 24dp = bar top + 42.
+ * Fixed ad slot metrics: the slot sits directly above the floating bar, and
+ * must clear the raised camera button by at least 12dp: bar top + 22dp rise
+ * + 12dp = bar top + 34.
  */
 const AD_SLOT_HEIGHT = 50;
-const AD_SLOT_GAP_ABOVE_CAMERA = 24;
-const AD_SLOT_BOTTOM = CAMERA_BUTTON_RISE + AD_SLOT_GAP_ABOVE_CAMERA; // 42
+const AD_SLOT_GAP_ABOVE_CAMERA = 12;
+const AD_SLOT_BOTTOM = CAMERA_BUTTON_RISE + AD_SLOT_GAP_ABOVE_CAMERA; // 34
 
 interface HeaderRow {
   kind: 'header';
@@ -89,14 +89,20 @@ const makeStyles = (colors: Palette) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: spacing.xl,
-      paddingTop: spacing.md,
-      paddingBottom: spacing.md,
+      // Top safe-area inset + 8dp: the SafeAreaView reports the inset, so the
+      // header itself adds only this 8dp. Status bar is hidden everywhere.
+      paddingTop: spacing.sm,
+      // 16dp between the header and the All files / Folders toggle.
+      paddingBottom: spacing.lg,
     },
     gearBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: radii.round,
+      width: 40,
+      height: 40,
+      // Same surface style as the sort pill: muted fill with a hairline border.
+      borderColor: colors.border,
+      borderWidth: 1,
       backgroundColor: colors.surfaceLighter,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -210,8 +216,9 @@ export default function HomeScreen() {
   const [newFolderVisible, setNewFolderVisible] = useState(false);
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
 
-  // Everything that floats near the bottom edge sits above the tab bar.
-  const barOffset = TAB_BAR_ROW_HEIGHT + Math.max(insets.bottom, 0);
+  // Everything that floats near the bottom edge sits above the floating bar:
+  // bar top = bottom inset + 8dp gap + bar height.
+  const barOffset = BAR_BOTTOM_GAP + BAR_HEIGHT + Math.max(insets.bottom, 0);
   const adSlotBottom = barOffset + AD_SLOT_BOTTOM;
   // List must scroll clear of ad slot + camera button + breathing room.
   const listPadding = adSlotBottom + AD_SLOT_HEIGHT + 24;

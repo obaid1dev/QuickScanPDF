@@ -1,101 +1,91 @@
-# Prompt for OpenCode — Fix Nav Bar and Camera Button, Restyle Buttons
+# Prompt for OpenCode — Bigger Camera Button, Fuller Nav Bar, Top Space Fix
 
 Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow it.
 
 ---
 
-## SCOPE: TWO FIXES ONLY
+## SCOPE
 
-The owner has tested the current build and confirmed everything else works. Change only these two areas:
+The owner likes the new Home layout (All files / Folders toggle, date list, centered camera button). Change only these areas:
 
-1. **Bottom nav bar and camera button position** (Fix 1)
-2. **Button design across the Home screen** (Fix 2)
+1. **Bottom bar design:** make the bar look full and finished, and make the camera button bigger.
+2. **Top spacing:** remove the extra empty space above the title.
+3. **Stray floating gear:** remove the gray circular gear button that currently floats over the document card. The settings gear already lives in the header, so this is a leftover.
 
-Do NOT change behavior, data, navigation routes, folders, sorting, ads logic, the scanner, PDF generation, permissions, the portrait lock, the immersive status bar, or the Tools "Coming soon" text. Do NOT add or remove features. Do NOT change the ad units or the banner's position relative to the bar.
+Do NOT change: the toggle, the sort pill, the folder grid, the document rows, the ads logic or the banner's position relative to the bar, the scanner, PDF generation, permissions, the portrait lock, the immersive status bar, or any navigation route. Do NOT add features.
 
 Do NOT upgrade any package. Do NOT build or submit.
 
 ---
 
-## FIX 1 — NAV BAR AND CAMERA BUTTON POSITION
+## FIX 1 — BOTTOM BAR (fuller look, bigger camera)
 
-**Current problem (from the owner's screenshot):** the camera button sits at the far left edge, partly cut off by the screen edge, instead of centered in the bar. It overlaps the bar's top edge in the wrong place. The Home, Tools, and Settings tabs are not balanced around it.
+**Current problem:** the bar is a thin strip with three small items and a lot of empty white space, so it looks unfinished.
 
-**Required result:**
-- **Layout decision (recommended, Option B):** the bar has **two tabs on each side of a centered camera button**: **Home** on the left, **Tools** on the right. The camera sits exactly in the horizontal center of the bar. Settings leaves the bar and returns to the **gear icon in the header**, which the owner already has. This is the only layout that stays symmetric with the camera in the center.
-  - Build the bar as three columns with equal widths: the left column holds Home, the center column holds the camera (centered in that column, so its center x equals the screen width divided by two), and the right column holds Tools.
-  - Keep the Settings screen and its route. The gear opens the same Settings screen.
-  - If the owner chooses Option A instead (keep three tabs and place the camera at the right end of the bar), follow that instead and report it. Do not mix the two options.
-- The camera button is a round accent button (`#2563EB`, white camera icon, about 60dp diameter). It rises about 16 to 20dp above the top edge of the bar, with a soft shadow. It is fully visible and never clipped by the screen edge.
-- **Measure, don't guess.** Position the camera button with `left: 50%` and `marginLeft: -buttonWidth / 2`, or with a flex row whose center item is the button, and confirm with `onLayout` that its center x equals the screen width divided by two. Test on a 360dp-wide layout and a 411dp-wide layout.
-- The bar's bottom padding uses the safe-area bottom inset, so nothing sits under the Android gesture area.
-- The bar keeps its fixed height. Content above it is never pushed by the banner or the camera button.
-- Keep the existing hide rules: the bar is hidden on the camera, editor, share, and viewer screens.
-- Keep the current active-tab accent color and icons. Only the spacing and alignment change.
+**Required design: a raised, rounded, floating bar**
+- The bar is a rounded container (full-radius, about 28dp corner radius) inset **16dp** from the left and right screen edges, with its bottom sitting above the Android gesture area (use the safe-area bottom inset plus 8dp).
+- Height: **76dp**. Background: the `surface` token (white in light theme, `surface` in dark). A 1px `border` token outline and a soft shadow, so it reads as a separate floating layer above the content.
+- Three items inside the bar: **Home** (left), **Tools** (right), and the **camera** in the center. Home and Tools are evenly spaced on either side of the center.
+- Each tab item: 24dp icon with a 12sp label underneath. The active tab uses the accent color on both icon and label, with a soft accent-tinted pill behind the icon.
 
-**Acceptance check:** on the Home screen the camera button is centered horizontally with equal space on both sides, fully visible, and the banner above the bar doesn't cover it.
+**Bigger camera button**
+- Diameter **72dp** (up from 60dp), filled with the accent color `#2563EB`, white camera icon at 30dp.
+- It sits in the exact horizontal center of the bar and rises about **22dp above** the top edge of the bar.
+- Give it a **ring cut-out**: a 5dp ring in the screen background color around the button, so it looks docked into the bar rather than floating on top of it.
+- Add a small **"Scan"** label (12sp, semibold, accent color) directly under the camera icon **inside the button area**, or just below the button in the bar, whichever fits without clipping. This fills the empty space and tells the user what the button does.
+- Press feedback: scale to 96% over 100ms, and back.
+- Keep the bar hidden on the camera, editor, share, and viewer screens, as it is now.
 
-## FIX 2 — MAKE THE BUTTONS LOOK DESIGNED
+**Why this layout:** a floating, rounded bar with a larger docked center button looks finished and balanced, and the "Scan" label gives the empty middle of the bar a clear purpose without adding a fourth tab.
 
-**Current problem:** the All files and Folders toggle, the sort button, the folder tiles, and the bottom bar look plain and generic. The owner wants them to look finished, while keeping the same layout and behavior.
+**Layout rules**
+- Measure the camera button's center with `onLayout` and confirm it equals the bar's width divided by two. Keep the existing `__DEV__` check that logs a mismatch.
+- The banner's reserved slot sits above the bar. Update its position math so the banner never overlaps the raised camera button (leave at least 12dp between the banner and the top of the camera button).
+- The content above the bar has enough bottom padding that the last list item is never hidden behind the bar.
 
-Use the design skills listed in AGENTS.md (react-native-design for styling, emil-design-eng for motion). Apply these specific rules:
+## FIX 2 — REMOVE THE EMPTY SPACE AT THE TOP
 
-**Segmented toggle (All files / Folders)**
-- One pill-shaped container with a subtle surface background (`surface` token) and a 1px border (`border` token). Padding 4dp inside.
-- The selected segment is a filled pill in the accent color with white text, with a short slide or fade animation (120 to 180ms) when switching.
-- The unselected segment shows muted text and a small icon (a grid icon for All files, a folder icon for Folders). The same icon set is used everywhere.
-- Equal widths, full content width, 44dp minimum height.
+**Current problem:** the title "QuickScan PDF" starts too far down, leaving an empty band above it.
 
-**Sort button**
-- A small pill with a sort icon and the current option label. Use the same pill style as the toggle, with a lighter background when idle.
-- Opens the existing sort menu, unchanged.
+**Required result**
+- The header starts at the **top safe-area inset plus 8dp**, not at a fixed padding below it.
+- The title and the storage line "224 KB used on device" sit at the top of the header with no extra margin above the title.
+- The settings gear stays in the header, aligned vertically with the title, and is a round button about 40dp in size with the same surface style as the sort pill.
+- Keep the spacing between the header and the All files / Folders toggle at 16dp. The toggle and everything below it keep their current position relative to the header.
+- The status bar is still hidden everywhere, so this top spacing uses only the safe-area inset that the device reports (which is small when the status bar is hidden).
 
-**Primary buttons (for example Add scans, Create folder)**
-- Filled accent (`#2563EB`), white text, 14dp corner radius, 52dp height, with a pressed state that darkens slightly and scales to 98% over 100ms.
-- Disabled state uses the muted surface color, with no shadow.
+## FIX 3 — REMOVE THE STRAY FLOATING GEAR
 
-**Secondary buttons (for example Skip for now, Cancel)**
-- Outlined with the `border` token, accent text, same height and corner radius as primary.
-
-**Folder tiles**
-- Keep the 2-column grid and the dashed "New folder" tile.
-- Each tile: 16dp corner radius, a soft icon badge at the top-left (accent tint background, accent folder icon), the folder name in semibold, and the scan count in muted text. A subtle border and no heavy shadow.
-- Pressed state: slight scale to 98%.
-
-**Bottom bar tabs**
-- Active tab: accent icon and label, with a soft accent-tinted pill behind the icon.
-- Inactive tabs: muted icon and label.
-- Labels are 12sp, icons 24dp. Keep the spacing even.
-
-**Across all of these**
-- Use only theme tokens from `constants/theme.ts`. No hard-coded hex values in components.
-- Keep corner radii consistent: 14dp for buttons, 16dp for cards and tiles, full round for pills and the camera button.
-- Make sure text is still readable in both light and dark themes, and check the accent color on text against both backgrounds.
-- Don't add new fonts or icon libraries. Use the icon set already in the project.
+- Find the gray circular gear button that appears over the document card in the list area (it looks like a floating action button). Remove it.
+- Confirm the only settings entry points are the gear in the Home header, which opens the Settings screen. Do not add a second one.
+- If the floating gear is a left-over component (for example, an old settings FAB or a debug button), delete it, not just hide it.
 
 ## TESTING CHECKLIST (for the owner, on a development build)
 
-1. The camera button is centered on the bar and fully visible, on a small and a large phone.
-2. The bar's Home and Tools tabs are balanced on either side of the camera button, and the gear icon in the header opens Settings.
-3. The toggle, sort pill, folder tiles, and primary and secondary buttons look consistent and respond when pressed.
-4. Light and dark themes both look correct.
-5. Nothing else changed: folders, sorting, ads, scanning, PDF export, and sharing all work as before.
+1. The camera button is noticeably bigger, centered, and sits with the ring cut-out above the bar.
+2. The bar looks full: a rounded floating container with Home and Tools balanced around the camera, and the "Scan" label visible.
+3. The title sits at the top of the screen with no large empty band above it, on a small and a large phone.
+4. There is only one gear icon, in the header. No gray floating gear over the document list.
+5. The banner sits above the bar and never overlaps the camera button or the list.
+6. The bar is hidden on the camera, editor, share, and viewer screens.
+7. Light and dark themes both look correct.
+8. Folders, sorting, ads, scanning, PDF export, and sharing all still work.
 
 ## VERSION AND GIT
 
 - Read `expo.android.versionCode` in `app.json` and increase it by 1.
-- Bump `expo.version` to the next patch version, and keep `APP_VERSION` in `constants/config.ts` in sync.
+- Bump `expo.version` to the next patch version (`1.2.3` if the current version is `1.2.2`), and keep `APP_VERSION` in `constants/config.ts` in sync.
 - Run `npx tsc --noEmit` and fix all errors.
 - Run `npx expo prebuild` locally, read the generated `AndroidManifest.xml` to confirm no permissions were added, then delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
-- Commit with a clear message, for example `"Fix nav bar and camera button position; restyle Home buttons"`, and push to GitHub.
+- Commit with a clear message, for example `"Bigger camera button, floating nav bar, top spacing fix, remove stray gear"`, and push to GitHub.
 - **Stop there. Do NOT run `eas build` or `eas submit`.**
 
 ## DELIVERABLE
 
 Report:
-- Files changed, grouped by Fix 1 and Fix 2
-- The nav bar layout you used (Option B unless the owner chose Option A) and the measured center position of the camera button
+- Files changed, grouped by bottom bar, camera button, header spacing, and stray gear
+- The measured camera button center and the banner-to-button gap
+- Where the stray gear component came from, and whether it was deleted
 - Result of `npx tsc --noEmit` and the prebuild manifest check
 - New versionCode and version
 - Commit message and confirmation of the push
