@@ -1,112 +1,92 @@
-# Prompt for OpenCode — Fix Camera Button, Stray Gear, Top Space, Ad Slot
+# Prompt for OpenCode — Set the New "PDF Scanner" Logo as the App Icon (v2)
 
 Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow it.
 
 ---
 
+## WHICH FILE TO USE
+
+Two source files were provided:
+- **Square full bleed** (`Icon set - SQUARE full bleed ... 1024px.png`): blue edge to edge, no rounded corners. **Use this one by default.** Google Play applies its own rounded mask, and Android and iOS do the same for the app icon, so the square file is the correct source.
+- **Rounded** (`Icon set - ROUNDED ... 1024px.png`): only use this if the owner explicitly asks for the rounded version. It is a preview, not a store upload.
+
+Do NOT use any file that contains the red "FREE" ribbon. If the chosen file contains red pixels or the word "FREE", **stop immediately** and report it.
+
+Both files are 1024×1024. Check this. If the size differs, stop and report it. Do not resize.
+
 ## SCOPE
 
-Fix only these five problems. Do not change anything else.
+Only the app icon files and the icon settings in `app.json` change. Do NOT change the splash screen, the app name, scanner, PDF generation, permissions, ads, navigation, folders, or screen code. Do NOT upgrade any package. Do NOT build or submit.
 
-1. The camera button is below the nav bar, not docked into it.
-2. The "Scan" label is white on a light background, so it is invisible.
-3. A stray gray gear button still floats over the document card.
-4. The empty space above the title is too large.
-5. The ad slot sits in the middle of the screen, not directly above the nav bar.
+## NO CROPPING, NO SHRINKING
 
-Do NOT change: the All files / Folders toggle, the sort pill, the folder views, the document rows, the scanner, PDF generation, permissions, the portrait lock, the immersive status bar, the ad units, or any navigation route.
+- Use the chosen logo at its exact 1024×1024 size. Do not crop, zoom, pad, or scale it.
+- Only Expo's own icon generation during prebuild may resize it. Don't pre-resize files in the project.
+- The corner brackets and the "PDF Scanner" text are inside the Android adaptive icon's safe zone, so keep them unchanged.
 
-Do NOT upgrade any package. Do NOT build or submit.
+## STEPS
 
----
+1. **Save the chosen logo as `assets/images/icon.png`**, unchanged, 1024×1024, fully opaque (no transparency). This is the main app icon for Android and iOS.
+
+2. **Create the Android adaptive foreground** `assets/images/icon-foreground.png`, 1024×1024, same size, from the same source:
+   - Make every blue background pixel transparent, and keep all white pixels (the brackets, "PDF", and "Scanner") exactly as they are.
+   - Use this script (install Pillow with `pip install pillow` if needed, and tell me):
+     ```python
+     from PIL import Image
+     img = Image.open("assets/images/icon.png").convert("RGBA")
+     px = img.load()
+     w, h = img.size
+     for y in range(h):
+         for x in range(w):
+             r, g, b, a = px[x, y]
+             if abs(r - 37) < 14 and abs(g - 99) < 14 and abs(b - 235) < 14:
+                 px[x, y] = (0, 0, 0, 0)
+     img.save("assets/images/icon-foreground.png")
+     assert img.size == (1024, 1024)
+     ```
+   - Check the output: still 1024×1024, the blue is gone, and the white artwork is fully present.
+
+3. **Update `app.json`:**
+   - `expo.icon` → `"./assets/images/icon.png"`
+   - `expo.android.adaptiveIcon.foregroundImage` → `"./assets/images/icon-foreground.png"`
+   - `expo.android.adaptiveIcon.backgroundColor` → `"#2563EB"`
+   - Leave every other plugin and setting unchanged.
+
+4. **Remove old icon references** that point to previous logo files. If an old file is still used somewhere, keep it and tell me where.
+
+5. The splash screen stays as it is.
+
+## VERIFICATION
+
+1. Run `npx expo prebuild` locally.
+2. Open the generated Android launcher icon (`mipmap` folders). Confirm it's the full blue square with the brackets, "PDF", and "Scanner" fully visible, not cropped.
+3. Confirm the generated `ic_launcher_foreground` has the white artwork on a transparent background.
+4. Read the generated `AndroidManifest.xml` and confirm no permissions were added.
+5. Delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
+6. Run `npx tsc --noEmit` and fix any errors.
 
 ## VERSION (set exactly, do not auto-increment)
 
-Set these exact values. Do not compute them from the current numbers:
+- `expo.version`: `"1.0.7"`
+- `expo.android.versionCode`: `13`
+- `APP_VERSION` in `constants/config.ts`: `'1.0.7'`
 
-- `expo.version`: `"1.0.6"`
-- `expo.android.versionCode`: `12`
-- `APP_VERSION` in `constants/config.ts`: `'1.0.6'`
+If Play Console shows a version code above 12, stop and tell me before using 13.
 
-Reason: the owner's live Play Console release is 11 (1.0.5). The next upload is 12 (1.0.6). The internal numbers used during development (1.2.x and 16 or 17) must not be used for the Play upload.
+## GIT
 
-Also update AGENTS.md. In the Release rules section, replace any instruction to auto-increment the version with this:
-
-> The owner sets `expo.version` and `expo.android.versionCode` explicitly in each prompt. Do not compute or auto-increment them. If a prompt doesn't state the values, stop and ask.
-
----
-
-## FIX 1 — CAMERA BUTTON DOCKED INTO THE NAV BAR
-
-**Current problem:** the camera button sits below the bar, partly outside it.
-
-**Required result**
-- The camera button is a child of the same container as the bar (or is positioned relative to the bar's measured top edge), so its position depends on the bar, not on a fixed offset.
-- It is centered horizontally (its center x equals the screen width divided by two).
-- It is 72dp in diameter, with its top rising about 22dp above the bar's top edge, and a 5dp ring cut-out in the screen background color.
-- The bar stays a rounded floating container, inset 16dp from each side, 76dp tall, above the Android gesture area.
-- Measure with `onLayout` in development. If the button's center y is more than 2dp away from the bar's top edge plus 0, log a `__DEV__` warning naming the component and the measured values, and fix the cause.
-
-## FIX 2 — "SCAN" LABEL VISIBLE
-
-- The "Scan" label must use the accent text token (`accentText`), not white.
-- Place it directly under the camera icon, inside the bar, so it is above the bottom edge of the bar and fully visible.
-- Check contrast against the bar's `surface` color in both themes. If it fails, use the text token instead.
-
-## FIX 3 — REMOVE THE STRAY GEAR
-
-- The gray circular gear floating over the document card is a leftover. Find it and delete it, not just hide it.
-- Search the project for any settings button that uses absolute positioning, a floating-action style, or a second gear icon outside the Home header (search for `settings` in `components/` and in `app/(tabs)/index.tsx`).
-- Keep exactly one settings entry point: the gear in the Home header, aligned with the title, which opens Settings.
-
-## FIX 4 — REDUCE THE TOP SPACE
-
-**Current problem:** the title sits about 60dp below the top of the screen, which looks empty.
-
-**Required result**
-- The header's top padding is the device's top safe-area inset plus **12dp**. Nothing else adds space above the title.
-- The title and the storage line keep their current size and spacing.
-- The toggle and everything below it move up with the header. Keep the gap between the header and the toggle at 16dp.
-- Check small phones (360dp wide) and tall phones (411dp wide, 800dp+ tall).
-
-## FIX 5 — AD SLOT DIRECTLY ABOVE THE NAV BAR
-
-**Current problem:** the banner sits in the middle of the screen, far above the bar.
-
-**Required result**
-- The ad slot's bottom edge is **12dp above the top of the nav bar's container** (not the top of the camera button, which can rise above the bar). Compute this from the bar's measured height and the safe-area bottom inset, not from a fixed number.
-- The slot's height is reserved so the list doesn't jump when the ad loads.
-- The slot must not overlap the camera button, the document list, or the folder grid.
-- The banner stays on the Home tab only, as before.
-
-## TESTING CHECKLIST (owner, on a development build)
-
-1. The camera button is centered in the bar, with its top above the bar's top edge and the ring visible. Nothing is below the bar.
-2. The "Scan" label is visible, in the accent color, inside the bar.
-3. There is only one gear icon, in the header. No gray gear over the list.
-4. The title sits near the top of the screen, with about 12dp of space above it.
-5. The ad slot sits just above the nav bar, not in the middle of the screen.
-6. Light and dark themes both look correct.
-7. Folders, sorting, ads, scanning, PDF export, and sharing still work.
-
-## VERSION AND GIT
-
-- Set the version values exactly as listed in the VERSION section above.
-- Update the AGENTS.md release rule as described above.
-- Run `npx tsc --noEmit` and fix all errors.
-- Run `npx expo prebuild` locally, read the generated `AndroidManifest.xml` to confirm no permissions were added, then delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
-- Commit with a clear message, for example `"Fix camera dock, Scan label, stray gear, top space, ad slot; version 1.0.6 (12)"`, and push to GitHub.
+- Commit with the message `"Set new PDF Scanner logo as app icon; version 1.0.7 (13)"`.
+- Push to GitHub.
 - **Stop there. Do NOT run `eas build` or `eas submit`.**
 
 ## DELIVERABLE
 
 Report:
-- Files changed, grouped by the five fixes
-- The measured camera button center y and bar top edge
-- The name of the stray gear component, and whether it was deleted
-- The measured gap between the title and the top of the screen
-- The gap between the ad slot and the nav bar
-- Result of `npx tsc --noEmit` and the prebuild manifest check
-- The version values committed (1.0.6, versionCode 12)
+- Which source file you used (square or rounded) and its size
+- Whether the source contained the FREE ribbon (it must not)
+- The files created or changed
+- Confirmation that the icon was not cropped or resized
+- The prebuild check results for the launcher icon and foreground
+- The version values committed (1.0.7, versionCode 13)
 - Commit message and confirmation of the push
-- Anything you couldn't verify without a device
+- Anything you could not verify without a device
