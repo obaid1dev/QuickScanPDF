@@ -26,11 +26,6 @@
     "android": {
       "edgeToEdgeEnabled": true,
       "versionCode": 13,
-      "adaptiveIcon": {
-        "backgroundColor": "#2563EB",
-        "foregroundImage": "./assets/images/icon-foreground.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",

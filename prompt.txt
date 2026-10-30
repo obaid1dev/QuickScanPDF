@@ -1,66 +1,44 @@
-# Prompt for OpenCode — Set the New "PDF Scanner" Logo as the App Icon (v2)
+# Prompt for OpenCode — Show the Logo Full Size on the Android Launcher (v3)
 
 Paste everything below the `---` into OpenCode. Read AGENTS.md first and follow it.
 
 ---
 
-## WHICH FILE TO USE
+## WHAT'S WRONG
 
-Two source files were provided:
-- **Square full bleed** (`Icon set - SQUARE full bleed ... 1024px.png`): blue edge to edge, no rounded corners. **Use this one by default.** Google Play applies its own rounded mask, and Android and iOS do the same for the app icon, so the square file is the correct source.
-- **Rounded** (`Icon set - ROUNDED ... 1024px.png`): only use this if the owner explicitly asks for the rounded version. It is a preview, not a store upload.
+On the phone's launcher, the logo appears smaller than the square artwork. The cause is the Android adaptive icon setup:
 
-Do NOT use any file that contains the red "FREE" ribbon. If the chosen file contains red pixels or the word "FREE", **stop immediately** and report it.
+- An adaptive icon has a foreground layer and a background layer. Android only guarantees that the central part of the foreground is visible, so the launcher scales the whole foreground down to fit that safe zone.
+- Our foreground is the full logo (brackets, "PDF", and "Scanner"), so the launcher shrinks all of it to fit, making the logo look smaller than the square we designed.
 
-Both files are 1024×1024. Check this. If the size differs, stop and report it. Do not resize.
+The fix is to stop using the adaptive foreground and let the launcher use the full square logo as the icon. The launcher will then show the square exactly as designed. It may apply a rounded or circular mask at the corners, but it won't shrink the artwork.
+
+## SOURCE
+
+- Use the **square full-bleed logo** (1024×1024, blue edge to edge, no rounded corners, no red FREE ribbon) as `assets/images/icon.png`. If the file contains red pixels or the word "FREE", stop and report it.
+- Use it exactly as provided. Do NOT crop, zoom, pad, or resize it.
 
 ## SCOPE
 
-Only the app icon files and the icon settings in `app.json` change. Do NOT change the splash screen, the app name, scanner, PDF generation, permissions, ads, navigation, folders, or screen code. Do NOT upgrade any package. Do NOT build or submit.
-
-## NO CROPPING, NO SHRINKING
-
-- Use the chosen logo at its exact 1024×1024 size. Do not crop, zoom, pad, or scale it.
-- Only Expo's own icon generation during prebuild may resize it. Don't pre-resize files in the project.
-- The corner brackets and the "PDF Scanner" text are inside the Android adaptive icon's safe zone, so keep them unchanged.
+Only the icon settings in `app.json` and the icon files change. Do NOT change the splash screen, the app name, the scanner, PDF generation, permissions, ads, navigation, folders, or screen code. Do NOT upgrade any package. Do NOT build or submit.
 
 ## STEPS
 
-1. **Save the chosen logo as `assets/images/icon.png`**, unchanged, 1024×1024, fully opaque (no transparency). This is the main app icon for Android and iOS.
+1. Place the square logo at `assets/images/icon.png`, untouched, 1024×1024, opaque.
 
-2. **Create the Android adaptive foreground** `assets/images/icon-foreground.png`, 1024×1024, same size, from the same source:
-   - Make every blue background pixel transparent, and keep all white pixels (the brackets, "PDF", and "Scanner") exactly as they are.
-   - Use this script (install Pillow with `pip install pillow` if needed, and tell me):
-     ```python
-     from PIL import Image
-     img = Image.open("assets/images/icon.png").convert("RGBA")
-     px = img.load()
-     w, h = img.size
-     for y in range(h):
-         for x in range(w):
-             r, g, b, a = px[x, y]
-             if abs(r - 37) < 14 and abs(g - 99) < 14 and abs(b - 235) < 14:
-                 px[x, y] = (0, 0, 0, 0)
-     img.save("assets/images/icon-foreground.png")
-     assert img.size == (1024, 1024)
-     ```
-   - Check the output: still 1024×1024, the blue is gone, and the white artwork is fully present.
+2. **Remove the adaptive icon foreground** from `app.json`:
+   - Delete `expo.android.adaptiveIcon.foregroundImage`.
+   - Delete `expo.android.adaptiveIcon.backgroundColor` as well, unless it's needed to keep the build valid. If the build requires an `adaptiveIcon` object, keep only `backgroundColor` set to `"#2563EB"` and no foreground, and tell me.
+   - Delete any `assets/images/icon-foreground.png` file that is no longer used, and tell me you did.
+   - `expo.icon` stays `"./assets/images/icon.png"`.
 
-3. **Update `app.json`:**
-   - `expo.icon` → `"./assets/images/icon.png"`
-   - `expo.android.adaptiveIcon.foregroundImage` → `"./assets/images/icon-foreground.png"`
-   - `expo.android.adaptiveIcon.backgroundColor` → `"#2563EB"`
-   - Leave every other plugin and setting unchanged.
-
-4. **Remove old icon references** that point to previous logo files. If an old file is still used somewhere, keep it and tell me where.
-
-5. The splash screen stays as it is.
+3. Leave every other plugin and setting unchanged.
 
 ## VERIFICATION
 
 1. Run `npx expo prebuild` locally.
-2. Open the generated Android launcher icon (`mipmap` folders). Confirm it's the full blue square with the brackets, "PDF", and "Scanner" fully visible, not cropped.
-3. Confirm the generated `ic_launcher_foreground` has the white artwork on a transparent background.
+2. Open the generated Android launcher icons (`mipmap` folders). Confirm the square logo is generated at full size for each density, with the brackets, "PDF", and "Scanner" fully visible.
+3. Confirm no `ic_launcher_foreground` is used for the launcher icon. If one still exists, tell me why.
 4. Read the generated `AndroidManifest.xml` and confirm no permissions were added.
 5. Delete the generated `android/` folder and revert any `package.json` script edits prebuild made.
 6. Run `npx tsc --noEmit` and fix any errors.
@@ -71,22 +49,19 @@ Only the app icon files and the icon settings in `app.json` change. Do NOT chang
 - `expo.android.versionCode`: `13`
 - `APP_VERSION` in `constants/config.ts`: `'1.0.7'`
 
-If Play Console shows a version code above 12, stop and tell me before using 13.
-
 ## GIT
 
-- Commit with the message `"Set new PDF Scanner logo as app icon; version 1.0.7 (13)"`.
+- Commit with the message `"Show full-size logo on launcher: remove adaptive foreground; version 1.0.7 (13)"`.
 - Push to GitHub.
 - **Stop there. Do NOT run `eas build` or `eas submit`.**
 
 ## DELIVERABLE
 
 Report:
-- Which source file you used (square or rounded) and its size
-- Whether the source contained the FREE ribbon (it must not)
-- The files created or changed
-- Confirmation that the icon was not cropped or resized
-- The prebuild check results for the launcher icon and foreground
+- The files changed or deleted
+- Whether the adaptive foreground was removed, and whether `backgroundColor` was kept
+- Confirmation that the square logo was not cropped or resized
+- The prebuild check results for the launcher icons
 - The version values committed (1.0.7, versionCode 13)
 - Commit message and confirmation of the push
 - Anything you could not verify without a device
